@@ -64,3 +64,5 @@ instance/
 
 # Log files
 *.log
+credentials.json
+credentials.json

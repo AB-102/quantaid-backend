@@ -1,0 +1,115 @@
+def insert_chapters_into_db():
+    chapters = [
+        {
+            "chapter_number": 1,
+            "chapter_title": "Why Quantum Computing?",
+            "topics": [
+                "Why Quantum Computing?",
+                "Quantum Computing in Cryptography",
+                "Quantum Computing in Scientific Simulation",
+                "Quantum Computing in Optimization",
+                "Quantum Computing in Machine Learning"
+            ]
+        },
+        {
+            "chapter_number": 2,
+            "chapter_title": "Fundamental Quantum Concepts",
+            "topics": [
+                "Power of Qubit",
+                "Superposition Magic",
+                "Quantum States",
+                "Quantum Measurement",
+                "Bloch Sphere Spin"
+            ]
+        },
+        {
+            "chapter_number": 3,
+            "chapter_title": "Quantum Phenomena and Principles",
+            "topics": [
+                "Mysterious Wavefunction",
+                "Probability Waves",
+                "Quantum Entanglement",
+                "Bell State Bond",
+                "Interference Play",
+                "No-Cloning Rule"
+            ]
+        },
+        {
+            "chapter_number": 4,
+            "chapter_title": "Quantum Gates and Operations",
+            "topics": [
+                "Quantum Gates Overview",
+                "Hadamard Gate",
+                "Pauli-X Gate",
+                "Pauli-Y Gate",
+                "Pauli-Z Gate",
+                "CNOT Gate"
+            ]
+        },
+        {
+            "chapter_number": 5,
+            "chapter_title": "Building Quantum Circuits",
+            "topics": [
+                "Quantum Circuitry Basics",
+                "Quantum Circuit Construction",
+                "Clifford Gate Set",
+                "Universal Gate Set",
+                "Reversibility of Quantum Gates"
+            ]
+        },
+        {
+            "chapter_number": 6,
+            "chapter_title": "Quantum Algorithms Foundation",
+            "topics": [
+                "Algorithm Overview",
+                "Quantum Parallelism",
+                "Speedup Boost",
+                "Quantum vs Classical",
+                "Problem Setup for Algorithms",
+                "Query Complexity"
+            ]
+        },
+        {
+            "chapter_number": 7,
+            "chapter_title": "Grover's Search Deep Dive",
+            "topics": [
+                "Grover's Algorithm Intro",
+                "Search Problem Setup",
+                "Oracle Query",
+                "Grover's Iterations",
+                "Amplitude Amplification",
+                "Grover's Final Measurement"
+            ]
+        },
+        {
+            "chapter_number": 8,
+            "chapter_title": "Shor's Algorithm Breakdown",
+            "topics": [
+                "Shor's Algorithm Intro",
+                "Shor's Factoring Step",
+                "Quantum Fourier Transform (QFT)",
+                "Period Finding Problem",
+                "Modular Arithmetic in Shor's",
+                "Shor's Application to Cryptography"
+            ]
+        },
+        {
+            "chapter_number": 9,
+            "chapter_title": "Variational Quantum Algorithms",
+            "topics": [
+                "Hybrid Quantum-Classical Approach",
+                "Parameterized Quantum Circuits",
+                "Cost Function in Variational Algorithms",
+                "Optimization Process in VQAs",
+                "Variational Quantum Eigensolver (VQE)",
+                "Quantum Approximate Optimization Algorithm (QAOA)"
+            ]
+        }
+    ]
+
+    # Clear existing chapters to avoid duplicates (optional)
+    db.chapters.delete_many({})
+
+    # Insert the chapters into the 'chapters' collection
+    db.chapters.insert_many(chapters)
+    print("Chapters and topics inserted into the database.")

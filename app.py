@@ -424,6 +424,10 @@ def generate_analogy():
     except Exception as e:
         print("Error in /generate_analogy:", e)
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/ping', methods=['GET'])
+def ping():
+    return 'pong', 200
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

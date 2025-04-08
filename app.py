@@ -1,10 +1,13 @@
 import os
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify, session
-from flask_cors import CORS
+from flask import Flask, request, jsonify, session, make_response
+from flask_cors import CORS, cross_origin
 from pymongo.mongo_client import MongoClient
 from gridfs import GridFS
 from openai import OpenAI
+from flask import abort
+from datetime import datetime
+
 
 load_dotenv()
 
@@ -42,6 +45,87 @@ mongo_client = MongoClient(uri)
 db = mongo_client.get_database("QuantumAiEd")
 fs = GridFS(db)
 
+
+def admin_required(func):
+    def wrapper(*args, **kwargs):
+        # For preflight requests, bypass the admin check
+        if request.method == 'OPTIONS':
+            # Create a proper empty response with 200 status.
+            return make_response(jsonify({'message': 'OK'}), 200)
+        if not session.get('admin', False):
+            return jsonify({'error': 'Unauthorized'}), 403
+        return func(*args, **kwargs)
+    wrapper.__name__ = func.__name__
+    return wrapper
+
+@app.route('/admin/upload_lesson', methods=['POST', 'OPTIONS'])
+@admin_required
+@cross_origin(supports_credentials=True)  # Ensure CORS wraps the response from admin_required
+def upload_lesson():
+    # No need to check for OPTIONS here since the decorator handles it.
+    try:
+        data = request.json or {}
+        lesson = {
+            'title': data.get('title'),
+            'description': data.get('description'),
+            'readings': data.get('readings', []),
+            'quiz': data.get('quiz', None),
+            'created_at': datetime.utcnow()
+        }
+        db.lessons.insert_one(lesson)
+        return jsonify({'message': 'Lesson uploaded successfully'}), 200
+    except Exception as e:
+        print("Error uploading lesson:", e)
+        return jsonify({'error': str(e)}), 500
+@app.route('/admin/upload_reading', methods=['POST', 'OPTIONS'])
+@admin_required
+def upload_reading():
+    if request.method == 'OPTIONS':
+        return '', 200
+    try:
+        # For file uploads, use request.files and GridFS
+        title = request.form.get('title')
+        content = request.form.get('content')
+        # Files: images/videos may be uploaded in request.files
+        image_id = None
+        video_id = None
+        if 'image' in request.files:
+            image_file = request.files['image']
+            image_id = fs.put(image_file, filename=image_file.filename)
+        if 'video' in request.files:
+            video_file = request.files['video']
+            video_id = fs.put(video_file, filename=video_file.filename)
+        reading = {
+            'title': title,
+            'content': content,
+            'image_id': image_id,
+            'video_id': video_id,
+            'created_at': datetime.utcnow()
+        }
+        db.readings.insert_one(reading)
+        return jsonify({'message': 'Reading uploaded successfully'}), 200
+    except Exception as e:
+        print("Error uploading reading:", e)
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/upload_quiz', methods=['POST', 'OPTIONS'])
+@admin_required
+def upload_quiz():
+    if request.method == 'OPTIONS':
+        return '', 200
+    try:
+        data = request.json or {}
+        # Expecting quiz data: list of questions (each with options and correct answer)
+        quiz = {
+            'questions': data.get('questions'),
+            'created_at': datetime.utcnow()
+        }
+        db.quizzes.insert_one(quiz)
+        return jsonify({'message': 'Quiz uploaded successfully'}), 200
+    except Exception as e:
+        print("Error uploading quiz:", e)
+        return jsonify({'error': str(e)}), 500
+
 ###############################################################################
 # HELPER: get_user_hobbies
 ###############################################################################
@@ -54,6 +138,7 @@ def get_user_hobbies(user_id: str):
     hobbies = profile.get('favorite_hobbies', [])
     print(f"DEBUG: Hobbies for user_id {user_id}:", hobbies)
     return hobbies
+
 
 ###############################################################################
 # EXPLAIN TEXT
@@ -204,6 +289,12 @@ def append_user_id():
         picture = data.get('picture')
         if not email:
             return jsonify({'error': 'Email is required'}), 400
+        # If the email matches the admin email, mark the session as admin
+        if email.lower() == 'kh78@rice.edu':
+            session['admin'] = True
+        else:
+            session['admin'] = False
+
         existing_user = db.users.find_one({'user_id': email})
         if existing_user:
             session['user_id'] = email
@@ -228,6 +319,7 @@ def append_user_id():
     except Exception as e:
         print("Error in /append_user_id:", e)
         return jsonify({'error': str(e)}), 500
+
 
 ###############################################################################
 # GET USER ID

@@ -22,13 +22,13 @@ app.config['SESSION_COOKIE_SECURE'] = False  # Set to True if serving over HTTPS
 
 CORS(
     app,
-    resources={r"/*": {"origins": [
-        "http://localhost:5173", 
-        "https://quantum-ai-ed-front-end-smoky.vercel.app"
-    ]}},
+    origins=[
+      "http://localhost:5173",
+      "https://quantum-ai-ed-front-end-smoky.vercel.app"
+    ],
     supports_credentials=True,
     allow_headers=["Content-Type"],
-    methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"]
+    methods=["GET","POST","PUT","DELETE"]
 )
 
 ###############################################################################

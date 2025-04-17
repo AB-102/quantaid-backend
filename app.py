@@ -23,7 +23,7 @@ app.config['SESSION_COOKIE_SECURE'] = False  # Set to True if serving over HTTPS
 CORS(
     app,
     resources={r"/*": {"origins": [
-        "http://localhost:5173", 
+        "http://localhost:5173",
         "https://quantum-ai-ed-front-end-smoky.vercel.app"
     ]}},
     supports_credentials=True,
@@ -46,17 +46,16 @@ db = mongo_client.get_database("QuantumAiEd")
 fs = GridFS(db)
 
 
+from functools import wraps
+
 def admin_required(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
-        # For preflight requests, bypass the admin check
-        if request.method == 'OPTIONS':
-            # Create a proper empty response with 200 status.
-            return make_response(jsonify({'message': 'OK'}), 200)
         if not session.get('admin', False):
             return jsonify({'error': 'Unauthorized'}), 403
         return func(*args, **kwargs)
-    wrapper.__name__ = func.__name__
     return wrapper
+
 
 @app.route('/admin/upload_lesson', methods=['POST', 'OPTIONS'])
 @admin_required
@@ -77,50 +76,36 @@ def upload_lesson():
     except Exception as e:
         print("Error uploading lesson:", e)
         return jsonify({'error': str(e)}), 500
-@app.route('/admin/upload_reading', methods=['POST', 'OPTIONS'])
+@app.route('/admin/upload_reading', methods=['POST'])
 @admin_required
 def upload_reading():
-    if request.method == 'OPTIONS':
-        return '', 200
     try:
-        # For file uploads, use request.files and GridFS
         title = request.form.get('title')
         content = request.form.get('content')
-        # Files: images/videos may be uploaded in request.files
-        image_id = None
-        video_id = None
-        if 'image' in request.files:
-            image_file = request.files['image']
-            image_id = fs.put(image_file, filename=image_file.filename)
-        if 'video' in request.files:
-            video_file = request.files['video']
-            video_id = fs.put(video_file, filename=video_file.filename)
-        reading = {
+        image_id = fs.put(request.files['image'], filename=request.files['image'].filename) if 'image' in request.files else None
+        video_id = fs.put(request.files['video'], filename=request.files['video'].filename) if 'video' in request.files else None
+
+        db.readings.insert_one({
             'title': title,
             'content': content,
             'image_id': image_id,
             'video_id': video_id,
             'created_at': datetime.utcnow()
-        }
-        db.readings.insert_one(reading)
+        })
         return jsonify({'message': 'Reading uploaded successfully'}), 200
     except Exception as e:
         print("Error uploading reading:", e)
         return jsonify({'error': str(e)}), 500
 
-@app.route('/admin/upload_quiz', methods=['POST', 'OPTIONS'])
+@app.route('/admin/upload_quiz', methods=['POST'])
 @admin_required
 def upload_quiz():
-    if request.method == 'OPTIONS':
-        return '', 200
     try:
         data = request.json or {}
-        # Expecting quiz data: list of questions (each with options and correct answer)
-        quiz = {
+        db.quizzes.insert_one({
             'questions': data.get('questions'),
             'created_at': datetime.utcnow()
-        }
-        db.quizzes.insert_one(quiz)
+        })
         return jsonify({'message': 'Quiz uploaded successfully'}), 200
     except Exception as e:
         print("Error uploading quiz:", e)
@@ -143,91 +128,70 @@ def get_user_hobbies(user_id: str):
 ###############################################################################
 # EXPLAIN TEXT
 ###############################################################################
-@app.route('/explain_text', methods=['POST', 'OPTIONS'])
-@cross_origin(origins=[
-    "http://localhost:5173",
-    "https://quantum-ai-ed-front-end-smoky.vercel.app"
-], supports_credentials=True)
+@app.route('/explain_text', methods=['POST'])
 def explain_text():
-    # no special OPTIONS case needed — Flask‑CORS will reply automatically
     data = request.json or {}
-    text = data.get('text')
+    text = data.get('text', '').strip()
+    if not text:
+        return jsonify({'error': 'No text provided'}), 400
+
+    user_id = session.get('user_id')
+    hobby_context = "No user logged in; use generic analogies." if not user_id else "Use generic analogies."
+
+    system_prompt = {
+        "role": "system",
+        "content": (
+            "You are a friendly quantum computing tutor. "
+            "Use bullet points in a concise, engaging manner and ask if the student understands."
+        )
+    }
+    user_msg = {
+        "role": "user",
+        "content": f"Explain and simplify this text in a beginner-friendly way:\n\n{text}"
+    }
+
     try:
-        data = request.json or {}
-        text = data.get('text')
-        if not text:
-            return jsonify({'error': 'No text provided'}), 400
-
-        user_id = session.get('user_id')
-        if not user_id:
-            hobby_context = "No user logged in; use generic analogies."
-        else:
-            hobby_context = "Use generic analogies (e.g., coin toss for superposition)."
-
-        system_prompt = {
-            "role": "system",
-            "content": (
-                "You are a friendly quantum computing tutor. Use bullet points in a concise, engaging manner, ask if the student understands."
-            )
-        }
-        user_msg = {
-            "role": "user",
-            "content": (
-                f"Explain and simplify this text in a beginner-friendly way:\n\n{text}\n\n"
-                "Make sure to be concise and use bullet points."
-            )
-        }
-        messages = [system_prompt, user_msg]
         response = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=messages,
+            messages=[system_prompt, user_msg],
             max_tokens=250,
             temperature=0.6
         )
-        explanation = response.choices[0].message.content.strip()
-        return jsonify({'explanation': explanation}), 200
+        return jsonify({'explanation': response.choices[0].message.content.strip()}), 200
     except Exception as e:
         print("Error in /explain_text:", e)
         return jsonify({'error': str(e)}), 500
 
+
 ###############################################################################
 # CHAT ABOUT TEXT (Highlight-based)
 ###############################################################################
-@app.route('/chat_about_text', methods=['POST', 'OPTIONS'])
-@cross_origin(origins=[
-    "http://localhost:5173",
-    "https://quantum-ai-ed-front-end-smoky.vercel.app"
-], supports_credentials=True)
+@app.route('/chat_about_text', methods=['POST'])
 def chat_about_text():
-    # no special OPTIONS case needed — Flask‑CORS will reply automatically
     data = request.json or {}
-    text = data.get('text')
-    try:
-        data = request.json or {}
-        highlighted_text = data.get('highlighted_text', '')
-        conversation_history = data.get('messages', [])
-        if not highlighted_text:
-            highlighted_text = "(No specific highlighted text, user wants a general chat.)"
+    highlighted_text = data.get('highlighted_text', '').strip() or "(No specific highlighted text.)"
+    conversation_history = data.get('messages', [])
 
-        system_prompt = {
-            "role": "system",
-            "content": (
-                "You are a concise quantum tutor. Use bullet points, ask if the student understands, and provide an extra example at the end."
-            )
-        }
-        user_msg = {
-            "role": "user",
-            "content": f"Discuss the highlighted text: '{highlighted_text}'."
-        }
-        messages = [system_prompt, user_msg] + conversation_history
+    system_prompt = {
+        "role": "system",
+        "content": (
+            "You are a concise quantum tutor. Use bullet points, ask if the student understands, "
+            "and provide an extra example at the end."
+        )
+    }
+    user_msg = {
+        "role": "user",
+        "content": f"Discuss the highlighted text: '{highlighted_text}'."
+    }
+
+    try:
         response = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=messages,
+            messages=[system_prompt, user_msg] + conversation_history,
             max_tokens=300,
             temperature=0.6
         )
-        bot_reply = response.choices[0].message.content.strip()
-        return jsonify({'assistant_reply': bot_reply}), 200
+        return jsonify({'assistant_reply': response.choices[0].message.content.strip()}), 200
     except Exception as e:
         print("Error in /chat_about_text:", e)
         return jsonify({'error': str(e)}), 500
@@ -483,48 +447,37 @@ def save_quiz_progress():
 ###############################################################################
 # NEW ENDPOINT: GENERATE ANALOGY
 ###############################################################################
-@app.route('/generate_analogy', methods=['POST', 'OPTIONS'])
-@cross_origin(origins=[
-    "http://localhost:5173",
-    "https://quantum-ai-ed-front-end-smoky.vercel.app"
-], supports_credentials=True)
+@app.route('/generate_analogy', methods=['POST'])
 def generate_analogy():
-    # no special OPTIONS case needed — Flask‑CORS will reply automatically
     data = request.json or {}
-    text = data.get('text')
-    if request.method == 'OPTIONS':
-        return '', 200
+    text = data.get('text', '').strip()
+    if not text:
+        return jsonify({'error': 'No text provided for analogy'}), 400
+
+    system_prompt = {
+        'role': 'system',
+        'content': 'You are a friendly quantum computing tutor. Provide a clear analogy for given content.'
+    }
+    user_prompt = {
+        'role': 'user',
+        'content': (
+            f"Provide a concise analogy to explain this content to a beginner:\n\n{text}\n\n"
+            "Use a relatable everyday scenario."
+        )
+    }
+
     try:
-        data = request.json or {}
-        text = data.get('text', '').strip()
-        if not text:
-            return jsonify({'error': 'No text provided for analogy'}), 400
-
-        # Mirror explain endpoint but with analogy prompt
-        system_prompt = {
-            'role': 'system',
-            'content': (
-                'You are a friendly quantum computing tutor. Provide a clear analogy for given content.'
-            )
-        }
-        user_prompt = {
-            'role': 'user',
-            'content': f"Provide a concise analogy to explain this content to a beginner:\n\n{text}\n\nUse a relatable everyday scenario."
-        }
-        messages = [system_prompt, user_prompt]
-
         response = openai_client.chat.completions.create(
             model='gpt-3.5-turbo',
-            messages=messages,
+            messages=[system_prompt, user_prompt],
             max_tokens=150,
             temperature=0.7
         )
-        analogy = response.choices[0].message.content.strip()
-        return jsonify({'analogy': analogy}), 200
+        return jsonify({'analogy': response.choices[0].message.content.strip()}), 200
     except Exception as e:
-        print('Error in /generate_analogy:', e)
+        print("Error in /generate_analogy:", e)
         return jsonify({'error': str(e)}), 500
-    
+
 @app.route('/ping', methods=['GET'])
 def ping():
     return 'pong', 200

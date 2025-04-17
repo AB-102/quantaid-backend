@@ -144,9 +144,14 @@ def get_user_hobbies(user_id: str):
 # EXPLAIN TEXT
 ###############################################################################
 @app.route('/explain_text', methods=['POST', 'OPTIONS'])
+@cross_origin(origins=[
+    "http://localhost:5173",
+    "https://quantum-ai-ed-front-end-smoky.vercel.app"
+], supports_credentials=True)
 def explain_text():
-    if request.method == 'OPTIONS':
-        return '', 200
+    # no special OPTIONS case needed — Flask‑CORS will reply automatically
+    data = request.json or {}
+    text = data.get('text')
     try:
         data = request.json or {}
         text = data.get('text')
@@ -189,9 +194,14 @@ def explain_text():
 # CHAT ABOUT TEXT (Highlight-based)
 ###############################################################################
 @app.route('/chat_about_text', methods=['POST', 'OPTIONS'])
+@cross_origin(origins=[
+    "http://localhost:5173",
+    "https://quantum-ai-ed-front-end-smoky.vercel.app"
+], supports_credentials=True)
 def chat_about_text():
-    if request.method == 'OPTIONS':
-        return '', 200
+    # no special OPTIONS case needed — Flask‑CORS will reply automatically
+    data = request.json or {}
+    text = data.get('text')
     try:
         data = request.json or {}
         highlighted_text = data.get('highlighted_text', '')
@@ -474,8 +484,14 @@ def save_quiz_progress():
 # NEW ENDPOINT: GENERATE ANALOGY
 ###############################################################################
 @app.route('/generate_analogy', methods=['POST', 'OPTIONS'])
-@cross_origin(supports_credentials=True)
+@cross_origin(origins=[
+    "http://localhost:5173",
+    "https://quantum-ai-ed-front-end-smoky.vercel.app"
+], supports_credentials=True)
 def generate_analogy():
+    # no special OPTIONS case needed — Flask‑CORS will reply automatically
+    data = request.json or {}
+    text = data.get('text')
     if request.method == 'OPTIONS':
         return '', 200
     try:

@@ -474,39 +474,31 @@ def save_quiz_progress():
 # NEW ENDPOINT: GENERATE ANALOGY
 ###############################################################################
 @app.route('/generate_analogy', methods=['POST', 'OPTIONS'])
+@cross_origin(supports_credentials=True)
 def generate_analogy():
     if request.method == 'OPTIONS':
         return '', 200
     try:
         data = request.json or {}
-        last_message = data.get('text', '')
-        user_id = session.get('user_id')
-        hobby_context = "Use generic analogies."
-        if user_id:
-            user_doc = db.users.find_one({'user_id': user_id}, {'_id': 0, 'profile': 1})
-            if user_doc and 'profile' in user_doc:
-                profile = user_doc['profile']
-                hobbies = profile.get('favorite_hobbies', [])
-                if hobbies:
-                    hobby_str = ", ".join(hobbies)
-                    hobby_context = f"Use analogies related to these hobbies: {hobby_str}."
-        prompt = (
-            f"Based on the following content, provide an analogy related to the user's hobbies.\n"
-            f"Content: {last_message}\n"
-            f"{hobby_context}\n"
-            "Provide only the analogy in a concise manner."
-        )
+        text = data.get('text', '').strip()
+        if not text:
+            return jsonify({'error': 'No text provided for analogy'}), 400
+
+        # Mirror explain endpoint but with analogy prompt
         system_prompt = {
-            "role": "system",
-            "content": "You are a creative assistant who provides helpful analogies when requested."
+            'role': 'system',
+            'content': (
+                'You are a friendly quantum computing tutor. Provide a clear analogy for given content.'
+            )
         }
-        user_msg = {
-            "role": "user",
-            "content": prompt
+        user_prompt = {
+            'role': 'user',
+            'content': f"Provide a concise analogy to explain this content to a beginner:\n\n{text}\n\nUse a relatable everyday scenario."
         }
-        messages = [system_prompt, user_msg]
+        messages = [system_prompt, user_prompt]
+
         response = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model='gpt-3.5-turbo',
             messages=messages,
             max_tokens=150,
             temperature=0.7
@@ -514,7 +506,7 @@ def generate_analogy():
         analogy = response.choices[0].message.content.strip()
         return jsonify({'analogy': analogy}), 200
     except Exception as e:
-        print("Error in /generate_analogy:", e)
+        print('Error in /generate_analogy:', e)
         return jsonify({'error': str(e)}), 500
     
 @app.route('/ping', methods=['GET'])

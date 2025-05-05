@@ -1,25 +1,23 @@
 import os
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, session, make_response
-from flask_cors import CORS, cross_origin
+from flask_cors import CORS, cross_origin # Keep cross_origin import
 from pymongo.mongo_client import MongoClient
+from pymongo.errors import PyMongoError
 from gridfs import GridFS
 from openai import OpenAI
 from flask import abort
-from datetime import datetime
-
+from datetime import datetime, timezone
 
 load_dotenv()
 
 app = Flask(__name__)
 
-# Use the secret key from the environment; fallback to a random key (only for dev)
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or os.urandom(24)
-
-# Cookie settings (adjust SESSION_COOKIE_SECURE to True in production with HTTPS)
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
-app.config['SESSION_COOKIE_SECURE'] = False  # Set to True if serving over HTTPS in production
+app.config['SESSION_COOKIE_SECURE'] = True # Assuming HTTPS eventually or for Vercel<->Render
 
+# Global CORS configuration (applied to all routes unless overridden by @cross_origin)
 CORS(
     app,
     origins=[
@@ -27,23 +25,23 @@ CORS(
       "https://quantum-ai-ed-front-end-smoky.vercel.app"
     ],
     supports_credentials=True,
-    allow_headers=["Content-Type"],
-    methods=["GET","POST","PUT","DELETE"]
+    # Allow common headers, "*" is okay for dev but be more specific in prod if possible
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 )
 
-###############################################################################
-# OpenAI client
-###############################################################################
+# --- OpenAI client ---
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-###############################################################################
-# Mongo Setup
-###############################################################################
-# Use the MongoDB URI from the environment (do not hardcode credentials)
+# --- Mongo Setup ---
 uri = os.getenv("MONGODB_URI")
 mongo_client = MongoClient(uri)
 db = mongo_client.get_database("QuantumAiEd")
 fs = GridFS(db)
+
+
+# --- Routes ---
+
 
 
 def admin_required(func):
@@ -285,204 +283,6 @@ def chat_quiz_question():
         print("Error in /chat_quiz_question:", e)
         return jsonify({'error': str(e)}), 500
 
-###############################################################################
-# APPEND USER ID
-###############################################################################
-@app.route('/append_user_id', methods=['POST', 'OPTIONS'])
-def append_user_id():
-    if request.method == 'OPTIONS':
-        return '', 200
-    try:
-        data = request.json or {}
-        email = data.get('user_id')
-        name = data.get('name')
-        picture = data.get('picture')
-        if not email:
-            return jsonify({'error': 'Email is required'}), 400
-        # If the email matches the admin email, mark the session as admin
-        if email.lower() == 'kh78@rice.edu':
-            session['admin'] = True
-        else:
-            session['admin'] = False
-
-        existing_user = db.users.find_one({'user_id': email})
-        if existing_user:
-            session['user_id'] = email
-            if existing_user.get('profile_complete'):
-                print("DEBUG: session['user_id'] set to:", email)
-                return jsonify({'message': 'User exists and profile is complete', 'redirect_to': 'map'}), 200
-            else:
-                print("DEBUG: session['user_id'] set to:", email)
-                return jsonify({'message': 'User exists but profile incomplete', 'redirect_to': 'profile-creation'}), 200
-        else:
-            db.users.insert_one({
-                'user_id': email,
-                'name': name,
-                'picture': picture,
-                'profile_complete': False,
-                'unlockedLevels': [0],
-                'completedQuizzes': []
-            })
-            session['user_id'] = email
-            print("DEBUG: session['user_id'] set to (new user):", email)
-            return jsonify({'message': 'User data saved to MongoDB', 'redirect_to': 'profile-creation'}), 201
-    except Exception as e:
-        print("Error in /append_user_id:", e)
-        return jsonify({'error': str(e)}), 500
-
-
-###############################################################################
-# GET USER ID
-###############################################################################
-@app.route('/get_user_id', methods=['GET', 'OPTIONS'])
-def get_user_id():
-    if request.method == 'OPTIONS':
-        return '', 200
-    uid = session.get('user_id')
-    print("DEBUG: GET /get_user_id -> session['user_id'] =", uid)
-    if not uid:
-        return jsonify({'error': 'User ID not found in session'}), 404
-    return jsonify({'user_id': uid}), 200
-
-###############################################################################
-# SAVE PROFILE
-###############################################################################
-@app.route('/save_profile', methods=['POST', 'OPTIONS'])
-def save_profile():
-    if request.method == 'OPTIONS':
-        return '', 200
-    try:
-        data = request.json or {}
-        print("DEBUG: Received data in /save_profile =>", data)
-        user_id = data.get('user_id', '').strip() or session.get('user_id')
-        if not user_id:
-            return jsonify({'error': 'No valid user_id found in data or session. Please log in again.'}), 401
-        user_doc = db.users.find_one({'user_id': user_id})
-        if not user_doc:
-            return jsonify({'error': f"No user found with user_id={user_id}"}), 404
-        major = data.get('other_major') if data.get('other_major') else data.get('college_major')
-        profile_data = {
-            'education_level': data.get('educationLevel'),
-            'major': major,
-            'knows_quantum_computing': data.get('knowsQuantumComputing'),
-            'coding_experience': data.get('codingExperience'),
-            'favorite_hobbies': data.get('favoriteHobbies', []),
-            'use_generic_analogies': data.get('use_generic_analogies', True)
-        }
-        print("DEBUG: Constructed profile_data =>", profile_data)
-        if not isinstance(profile_data['favorite_hobbies'], list):
-            return jsonify({'error': 'favoriteHobbies must be an array/list'}), 400
-        db.users.update_one(
-            {'user_id': user_id},
-            {'$set': {
-                'profile': profile_data,
-                'profile_complete': True
-            }},
-            upsert=True
-        )
-        return jsonify({'message': 'Profile data saved successfully'}), 200
-    except Exception as e:
-        print("Error in /save_profile:", e)
-        return jsonify({'error': str(e)}), 500
-
-###############################################################################
-# GET USER PROFILE
-###############################################################################
-@app.route('/get_user_profile', methods=['GET', 'OPTIONS'])
-def get_user_profile():
-    if request.method == 'OPTIONS':
-        return '', 200
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({'error': 'User ID not found in session'}), 404
-    try:
-        user = db.users.find_one({'user_id': user_id}, {'_id': 0, 'profile': 1, 'name': 1, 'picture': 1})
-        if not user:
-            return jsonify({'error': 'User profile not found'}), 404
-        profile = user.get('profile', {})
-        if not profile:
-            return jsonify({'error': 'Profile data missing for user'}), 404
-        return jsonify({
-            'name': user.get('name', 'User'),
-            'profilePicture': user.get('picture', ''),
-            'educationLevel': profile.get('education_level', 'Not provided'),
-            'major': profile.get('major', 'Not provided'),
-            'favoriteHobbies': profile.get('favorite_hobbies', []),
-            'use_generic_analogies': profile.get('use_generic_analogies', True)
-        }), 200
-    except Exception as e:
-        print("Error in /get_user_profile:", e)
-        return jsonify({'error': str(e)}), 500
-
-###############################################################################
-# LOGOUT
-###############################################################################
-@app.route('/logout', methods=['POST', 'OPTIONS'])
-def logout():
-    if request.method == 'OPTIONS':
-        return '', 200
-    session.pop('user_id', None)
-    return jsonify({'message': 'Logged out successfully'}), 200
-
-###############################################################################
-# GET QUIZ PROGRESS
-###############################################################################
-@app.route('/get_quiz_progress', methods=['GET', 'OPTIONS'])
-def get_quiz_progress():
-    if request.method == 'OPTIONS':
-        return '', 200
-    user_id = session.get('user_id')
-    if not user_id:
-        print("get_quiz_progress: No user_id in session")
-        return jsonify({'error': 'User not logged in'}), 401
-    try:
-        user = db.users.find_one(
-            {'user_id': user_id},
-            {'_id': 0, 'unlockedLevels': 1, 'completedQuizzes': 1}
-        )
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        return jsonify({
-            'unlockedLevels': user.get('unlockedLevels', [0]),
-            'completedQuizzes': user.get('completedQuizzes', [])
-        }), 200
-    except Exception as e:
-        print("Error in /get_quiz_progress:", e)
-        return jsonify({'error': str(e)}), 500
-
-###############################################################################
-# SAVE QUIZ PROGRESS
-###############################################################################
-@app.route('/save_quiz_progress', methods=['POST', 'OPTIONS'])
-def save_quiz_progress():
-    if request.method == 'OPTIONS':
-        return '', 200
-    user_id = session.get('user_id')
-    if not user_id:
-        print("save_quiz_progress: No user_id in session -> 401")
-        return jsonify({'error': 'User not logged in'}), 401
-    try:
-        data = request.json
-        completed_quiz = data.get('completedQuiz')
-        unlock_quiz = data.get('unlockQuiz')
-        if completed_quiz is None or unlock_quiz is None:
-            return jsonify({'error': 'Both completedQuiz and unlockQuiz are required'}), 400
-        db.users.update_one(
-            {'user_id': user_id},
-            {'$addToSet': {'completedQuizzes': completed_quiz}}
-        )
-        db.users.update_one(
-            {'user_id': user_id},
-            {'$addToSet': {'unlockedLevels': unlock_quiz}}
-        )
-        return jsonify({'message': 'Quiz progress saved successfully'}), 200
-    except Exception as e:
-        print("Error in /save_quiz_progress:", e)
-        return jsonify({'error': str(e)}), 500
-
-###############################################################################
-# NEW ENDPOINT: GENERATE ANALOGY
-###############################################################################
 @app.route('/generate_analogy', methods=['POST', 'OPTIONS'])
 @cross_origin(origins=[
     "http://localhost:5173",
@@ -524,11 +324,248 @@ def generate_analogy():
     except Exception as e:
         print('Error in /generate_analogy:', e)
         return jsonify({'error': str(e)}), 500
-    
+
+@app.route('/append_user_id', methods=['POST']) # Removed OPTIONS from methods list here
+@cross_origin(supports_credentials=True) # Decorator handles OPTIONS
+def append_user_id():
+    # REMOVED: if request.method == 'OPTIONS': ... block
+    try:
+        # ... (rest of your POST logic remains the same)
+        data = request.json or {}
+        email = data.get('user_id')
+        name = data.get('name')
+        picture = data.get('picture')
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        email = email.lower()
+        if email == 'kh78@rice.edu':
+            session['admin'] = True
+        else:
+            session['admin'] = False
+
+        existing_user = db.users.find_one({'user_id': email})
+        if existing_user:
+            session['user_id'] = email
+            print(f"DEBUG: User {email} logged in. Session ID set.")
+            if existing_user.get('profile_complete'):
+                print(f"DEBUG: User {email} exists and profile is complete.")
+                return jsonify({'message': 'User exists and profile is complete', 'redirect_to': 'map'}), 200
+            else:
+                print(f"DEBUG: User {email} exists but profile incomplete.")
+                return jsonify({'message': 'User exists but profile incomplete', 'redirect_to': 'profile-creation'}), 200
+        else:
+            new_user_data = {
+                'user_id': email, 'name': name, 'picture': picture,
+                'profile_complete': False, 'unlockedLevels': [0],
+                'completedQuizzes': [], 'createdAt': datetime.now(timezone.utc)
+            }
+            db.users.insert_one(new_user_data)
+            session['user_id'] = email
+            print(f"DEBUG: New user {email} created. Session ID set.")
+            return jsonify({'message': 'User data saved to MongoDB', 'redirect_to': 'profile-creation'}), 201
+    except PyMongoError as e:
+        print(f"Error in /append_user_id (MongoDB): {e}")
+        return jsonify({'error': f'Database error: {e}'}), 500
+    except Exception as e:
+        print(f"Error in /append_user_id: {e}")
+        return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
+
+@app.route('/get_user_id', methods=['GET']) # Removed OPTIONS
+@cross_origin(supports_credentials=True) # Decorator handles OPTIONS
+def get_user_id():
+    # REMOVED: if request.method == 'OPTIONS': ... block
+    uid = session.get('user_id')
+    print("DEBUG: GET /get_user_id -> session['user_id'] =", uid)
+    if not uid:
+        return jsonify({'error': 'User ID not found in session'}), 401
+    return jsonify({'user_id': uid}), 200
+
+@app.route('/save_profile', methods=['POST']) # Removed OPTIONS
+@cross_origin(supports_credentials=True) # Decorator handles OPTIONS
+def save_profile():
+    # REMOVED: if request.method == 'OPTIONS': ... block
+    user_id = session.get('user_id')
+    # ... (rest of your POST logic remains the same)
+    if not user_id:
+        return jsonify({'error': 'User not logged in. Please log in again.'}), 401
+    try:
+        data = request.json or {}
+        print(f"DEBUG: Received data in /save_profile for user {user_id} =>", data)
+        user_doc = db.users.find_one({'user_id': user_id})
+        if not user_doc:
+            session.pop('user_id', None)
+            return jsonify({'error': f"User not found with ID={user_id}. Please log in again."}), 404
+        major = data.get('other_major') if data.get('other_major') else data.get('college_major')
+        hobbies = data.get('favoriteHobbies', [])
+        if not isinstance(hobbies, list):
+            hobbies = [str(hobbies)] if hobbies else []
+        profile_data = {
+            'education_level': data.get('educationLevel'), 'major': major,
+            'knows_quantum_computing': data.get('knowsQuantumComputing'),
+            'coding_experience': data.get('codingExperience'),
+            'favorite_hobbies': hobbies,
+            'use_generic_analogies': data.get('use_generic_analogies', True)
+        }
+        print("DEBUG: Constructed profile_data =>", profile_data)
+        update_result = db.users.update_one(
+            {'user_id': user_id},
+            {'$set': {
+                'profile': profile_data, 'profile_complete': True,
+                'profileLastUpdatedAt': datetime.now(timezone.utc)
+            }}
+        )
+        if update_result.matched_count == 0:
+             return jsonify({'error': f"Failed to find user {user_id} during update."}), 404
+        if update_result.modified_count == 0 and update_result.matched_count == 1:
+            print(f"DEBUG: Profile data for {user_id} submitted but no changes were detected.")
+            return jsonify({'message': 'Profile data submitted, but no changes needed.'}), 200
+        print(f"DEBUG: Profile for user {user_id} saved successfully.")
+        return jsonify({'message': 'Profile data saved successfully'}), 200
+    except PyMongoError as e:
+        print(f"Error in /save_profile (MongoDB): {e}")
+        return jsonify({'error': f'Database error: {e}'}), 500
+    except Exception as e:
+        print(f"Error in /save_profile: {e}")
+        return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
+
+
+@app.route('/get_user_profile', methods=['GET']) # Removed OPTIONS
+@cross_origin(supports_credentials=True) # Decorator handles OPTIONS
+def get_user_profile():
+    # REMOVED: if request.method == 'OPTIONS': ... block
+    user_id = session.get('user_id')
+    # ... (rest of your GET logic remains the same)
+    if not user_id:
+        return jsonify({'error': 'User ID not found in session'}), 401
+    try:
+        user = db.users.find_one(
+            {'user_id': user_id},
+            {'_id': 0, 'profile': 1, 'name': 1, 'picture': 1}
+        )
+        if not user:
+            session.pop('user_id', None)
+            return jsonify({'error': 'User profile not found'}), 404
+        profile = user.get('profile', {})
+        if not profile or not user.get('profile_complete'):
+            return jsonify({'error': 'Profile data missing or incomplete for user'}), 404
+        response_data = {
+            'name': user.get('name', 'User'), 'profilePicture': user.get('picture', ''),
+            'educationLevel': profile.get('education_level', 'Not provided'),
+            'major': profile.get('major', 'Not provided'),
+            'favoriteHobbies': profile.get('favorite_hobbies', []),
+            'use_generic_analogies': profile.get('use_generic_analogies', True)
+        }
+        return jsonify(response_data), 200
+    except PyMongoError as e:
+        print(f"Error in /get_user_profile (MongoDB): {e}")
+        return jsonify({'error': f'Database error: {e}'}), 500
+    except Exception as e:
+        print(f"Error in /get_user_profile: {e}")
+        return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
+
+@app.route('/logout', methods=['POST']) # Removed OPTIONS
+@cross_origin(supports_credentials=True) # Decorator handles OPTIONS
+def logout():
+    # REMOVED: if request.method == 'OPTIONS': ... block
+    user_id = session.get('user_id')
+    # ... (rest of your POST logic remains the same)
+    if user_id:
+        print(f"DEBUG: Logging out user {user_id}")
+        session.pop('user_id', None)
+        session.pop('admin', None)
+        return jsonify({'message': 'Logged out successfully'}), 200
+    else:
+        print("DEBUG: Logout called but no user was logged in.")
+        return jsonify({'message': 'No user session found to log out'}), 200
+
+@app.route('/save_quiz_result', methods=['POST']) # Removed OPTIONS
+@cross_origin(supports_credentials=True) # Decorator handles OPTIONS
+def save_quiz_result():
+    # REMOVED: if request.method == 'OPTIONS': ... block
+    user_id = session.get('user_id')
+    # ... (rest of your POST logic remains the same)
+    if not user_id:
+        return jsonify({'error': 'User not logged in'}), 401
+    try:
+        data = request.json
+        if not data or 'courseId' not in data or 'score' not in data or 'passed' not in data:
+            return jsonify({'error': 'Missing required quiz data (courseId, score, passed)'}), 400
+        course_id = data['courseId']
+        score = data['score']
+        passed = data['passed']
+        timestamp = datetime.now(timezone.utc)
+        if not isinstance(course_id, int) or not isinstance(score, (int, float)) or not isinstance(passed, bool):
+             return jsonify({'error': 'Invalid data types for quiz data'}), 400
+        quiz_result_doc = {
+            "courseId": course_id, "score": score, "passed": passed, "timestamp": timestamp
+        }
+        update_operations = {
+            '$push': { 'completedQuizzes': quiz_result_doc },
+             '$set': { 'lastActivityAt': timestamp }
+        }
+        MAX_COURSE_ID = 8
+        if passed and course_id < MAX_COURSE_ID:
+            next_level_id = course_id + 1
+            update_operations['$addToSet'] = { 'unlockedLevels': next_level_id }
+        result = db.users.update_one( {'user_id': user_id}, update_operations )
+        if result.matched_count == 0:
+            return jsonify({'error': 'User not found during quiz save'}), 404
+        print(f"DEBUG: Quiz result saved for user {user_id}, course {course_id}. Passed: {passed}")
+        updated_user = db.users.find_one({'user_id': user_id}, {'_id': 0, 'unlockedLevels': 1})
+        new_unlocked_levels = updated_user.get('unlockedLevels', [0]) if updated_user else [0]
+        return jsonify({
+            'message': 'Quiz result saved successfully',
+            'unlockedLevels': new_unlocked_levels
+            }), 200
+    except PyMongoError as e:
+        print(f"Error saving quiz result (MongoDB): {e}")
+        return jsonify({'error': f'Database error: {e}'}), 500
+    except Exception as e:
+        print(f"Error saving quiz result: {e}")
+        return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
+
+@app.route('/get_user_progress', methods=['GET']) # Removed OPTIONS
+@cross_origin(supports_credentials=True) # Decorator handles OPTIONS
+def get_user_progress():
+    # REMOVED: if request.method == 'OPTIONS': ... block
+    user_id = session.get('user_id')
+    # ... (rest of your GET logic remains the same)
+    if not user_id:
+        return jsonify({'error': 'User not logged in'}), 401
+    try:
+        user = db.users.find_one(
+            {'user_id': user_id},
+            {'_id': 0, 'unlockedLevels': 1, 'completedQuizzes': 1}
+        )
+        if not user:
+            session.pop('user_id', None)
+            return jsonify({'error': 'User data not found for this session'}), 404
+        unlocked_levels = user.get('unlockedLevels', [0])
+        completed_quizzes = user.get('completedQuizzes', [])
+        print(f"DEBUG: Fetched progress for user {user_id}: Unlocked {unlocked_levels}")
+        return jsonify({
+            'unlockedLevels': unlocked_levels,
+            'completedQuizzes': completed_quizzes
+            }), 200
+    except PyMongoError as e:
+        print(f"Error fetching user progress (MongoDB): {e}")
+        return jsonify({'error': f'Database error: {e}'}), 500
+    except Exception as e:
+        print(f"Error fetching user progress: {e}")
+        return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
+
 @app.route('/ping', methods=['GET'])
+# No @cross_origin needed if it doesn't require credentials or special headers
 def ping():
-    return 'pong', 200
+    try:
+        mongo_client.admin.command('ping')
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error ({e})"
+    return jsonify({'status': 'pong', 'database': db_status}), 200
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    # Use debug=True for development to get auto-reloading and better error pages
+    # Ensure debug=False in production
+    app.run(host='127.0.0.1', port=port, debug=True)

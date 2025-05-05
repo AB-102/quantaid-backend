@@ -568,4 +568,4 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     # Use debug=True for development to get auto-reloading and better error pages
     # Ensure debug=False in production
-    app.run(host='127.0.0.1', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=False)

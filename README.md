@@ -1,12 +1,13 @@
 # QuantumAiEdBackEnd
 
-This is the backend for QuantumAiEd, an AI-powered tool for generating feedback on quantum computing content. It uses Python, Flask, and the OpenAI API.
+This is the backend for QuantumAiEd, an AI-powered tool for generating feedback on quantum computing content. It uses Python, Flask, MongoDB, and the OpenAI API.
 
 ## ⚙️ Tech Stack
 
 - Python 3.8+
 - Flask
 - Flask-CORS
+- MongoDB
 - OpenAI API
 
 ## 🚀 Setup Instructions
@@ -21,7 +22,7 @@ This is the backend for QuantumAiEd, an AI-powered tool for generating feedback 
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-3. Install the dependencies:
+3. Install dependencies:
 
    pip install -r requirements.txt
 
@@ -29,15 +30,19 @@ This is the backend for QuantumAiEd, an AI-powered tool for generating feedback 
 
    cp .env.example .env
 
-   Then open `.env` and add:
+   Open `.env` and fill in:
 
-   OPENAI_API_KEY=your_openai_api_key_here
+   FLASK_SECRET_KEY=your_secret_key_here  
+   OPENAI_API_KEY=your_openai_api_key_here  
+   MONGODB_URI=your_mongodb_connection_uri  
+   SESSION_COOKIE_SECURE=False  
+   CORS_ORIGIN=http://localhost:5173
 
-5. Start the server:
+5. Run the backend server:
 
    python app.py
 
-   The backend will be available at http://localhost:5000
+   Server will be available at http://localhost:5000
 
 ## 🧪 API Endpoints
 
@@ -46,9 +51,10 @@ This is the backend for QuantumAiEd, an AI-powered tool for generating feedback 
 
 ## ❗ Troubleshooting
 
-- Make sure `.env` contains a valid OpenAI API key
-- If CORS errors occur, ensure frontend is allowed in Flask-CORS config
-- Use Postman to manually test the endpoints
+- Make sure `.env` has all required variables
+- Ensure MongoDB is running or remote connection string is valid
+- If CORS errors occur, check that `CORS_ORIGIN` matches your frontend address
+- Test using Postman to verify endpoint responses
 
 ## 📄 License
 

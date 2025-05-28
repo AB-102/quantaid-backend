@@ -1,129 +1,172 @@
 # QuantumAiEdBackEnd
 
-This is the backend service for QuantumAiEd, providing an API for generating AI feedback, storing lessons and readings, and managing user progress. Built using Flask, MongoDB (with GridFS), and the OpenAI API.
+QuantumAiEd is an AI-driven educational platform that generates feedback, analogies, explanations, and personalized quizzes for quantum computing instruction. This repository contains the backend API, built with Flask, OpenAI, and MongoDB, designed to support dynamic educational content generation and progress tracking.
 
 ---
 
-## ⚙️ Tech Stack
+## 🌐 Deployed Frontend
 
-- Python 3.8+
-- Flask
-- Flask-CORS
-- PyMongo + GridFS
-- OpenAI API
-- dotenv
+🔗 [https://quantum-ai-ed-front-end-smoky.vercel.app/](https://quantum-ai-ed-front-end-smoky.vercel.app/)
 
 ---
 
-## 🚀 Setup Instructions
+## 🧰 Tech Stack
 
-1. Clone the repository:
+- **Backend Framework**: Flask
+- **Database**: MongoDB + GridFS
+- **AI Integration**: OpenAI API
+- **Sessions**: Flask-Session
+- **CORS**: Flask-CORS
+- **Environment Management**: python-dotenv
 
-   git clone https://github.com/kevvinnnh/QuantumAiEdBackEnd.git  
-   cd QuantumAiEdBackEnd
+---
 
-2. Create and activate a virtual environment:
+## ⚙️ Setup Instructions
 
-   python -m venv venv  
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+### 1. Clone the Repository
 
-3. Install dependencies:
+```bash
+git clone https://github.com/kevvinnnh/QuantumAiEdBackEnd.git
+cd QuantumAiEdBackEnd
+```
 
-   pip install -r requirements.txt
+### 2. Create and Activate a Virtual Environment
 
-4. Create a `.env` file:
+```bash
+python -m venv venv
+source venv/bin/activate       # On Windows: venv\Scripts\activate
+```
 
-   cp .env.example .env
+### 3. Install Dependencies
 
-   Fill in your environment variables:
+```bash
+pip install -r requirements.txt
+```
 
-   FLASK_SECRET_KEY=your_flask_secret_key_here  
-   OPENAI_API_KEY=your_openai_api_key_here  
-   MONGODB_URI=your_mongodb_connection_string  
-   SESSION_COOKIE_SECURE=False  
-   CORS_ORIGIN=http://localhost:5173
+### 4. Configure Environment Variables
 
-5. Start the server:
+Create a `.env` file from the example:
 
-   python app.py
+```bash
+cp .env.example .env
+```
 
-   Your backend will run at http://localhost:5000
+Edit `.env` with the following keys:
+
+```
+FLASK_SECRET_KEY=your_flask_secret_key
+OPENAI_API_KEY=your_openai_api_key
+MONGODB_URI=your_mongodb_connection_uri
+SESSION_COOKIE_SECURE=False
+CORS_ORIGIN=http://localhost:5173
+```
+
+### 5. Run the Server
+
+```bash
+python app.py
+```
+
+Server will be live at:  
+📍 `http://localhost:5000`
 
 ---
 
 ## 🔐 Admin Routes
 
-Requires session `admin=True`:
-- POST /admin/upload_lesson — Upload lesson metadata
-- POST /admin/upload_reading — Upload reading w/ image or video to GridFS
-- POST /admin/upload_quiz — Upload quiz content
+> Requires session with `admin=True`
+
+| Endpoint               | Description                        |
+|------------------------|------------------------------------|
+| `POST /admin/upload_lesson`  | Upload lesson metadata         |
+| `POST /admin/upload_reading` | Upload reading media to GridFS |
+| `POST /admin/upload_quiz`    | Upload quiz content            |
 
 ---
 
-## ✍️ Content Routes
+## ✍️ Content Generation Routes
 
-- POST /explain_text — Simplify and explain concepts with bullet points
-- POST /generate_analogy — Return a relatable analogy for input text
-- POST /chat_about_text — Continue a discussion about highlighted concepts
-- POST /chat_quiz_question — Provide adaptive feedback on quiz responses
+| Endpoint                 | Description                                  |
+|--------------------------|----------------------------------------------|
+| `POST /explain_text`     | Simplify input and return bullet explanations |
+| `POST /generate_analogy` | Return analogy for abstract input             |
+| `POST /chat_about_text`  | Engage in dialog about a concept              |
+| `POST /chat_quiz_question` | Feedback on quiz answers with context      |
 
 ---
 
 ## 👤 User & Profile Routes
 
-- POST /append_user_id — Log in user and assign session
-- GET /get_user_id — Return logged-in user ID from session
-- POST /save_profile — Submit user's background info and hobbies
-- GET /get_user_profile — Fetch saved profile data
-- POST /logout — Clear user session
+| Endpoint               | Description                            |
+|------------------------|----------------------------------------|
+| `POST /append_user_id` | Log in and start session               |
+| `GET /get_user_id`     | Return user ID from session            |
+| `POST /save_profile`   | Save user background info              |
+| `GET /get_user_profile`| Retrieve saved profile data            |
+| `POST /logout`         | End session and clear user context     |
 
 ---
 
 ## 🧠 Quiz & Progress Routes
 
-- POST /save_quiz_result — Save quiz scores and unlock next levels
-- GET /get_user_progress — Return list of completed quizzes and levels
+| Endpoint                 | Description                             |
+|--------------------------|-----------------------------------------|
+| `POST /save_quiz_result` | Save quiz score and unlock new levels   |
+| `GET /get_user_progress` | Retrieve completed quizzes and progress |
 
 ---
 
 ## 🩺 Health Check
 
-- GET /ping — Check MongoDB connection and app status
+| Endpoint    | Description                      |
+|-------------|----------------------------------|
+| `GET /ping` | Check MongoDB and app connectivity |
 
 ---
 
-## 🌐 CORS & Sessions
+## 🌍 CORS & Session Configuration
 
-- CORS allowed origins:
-  - http://localhost:5173
-  - https://quantum-ai-ed-front-end-smoky.vercel.app
-
-- Session cookies are configured to support cross-origin credentials.
-- Admin access is granted based on user ID (e.g., kh78@rice.edu).
+- Allowed frontend origins:
+  - `http://localhost:5173`
+  - `https://quantum-ai-ed-front-end-smoky.vercel.app`
+- Session cookies support cross-origin credentials
+- Admin access is restricted to predefined email IDs
 
 ---
 
-## 📄 .env.example
+## 🧪 `.env.example`
 
-Create a file named `.env.example` with the following:
-
-FLASK_SECRET_KEY=your_flask_secret_key_here  
-OPENAI_API_KEY=your_openai_api_key_here  
-MONGODB_URI=your_mongodb_connection_string  
-SESSION_COOKIE_SECURE=False  
+```env
+FLASK_SECRET_KEY=your_flask_secret_key
+OPENAI_API_KEY=your_openai_api_key
+MONGODB_URI=your_mongodb_connection_string
+SESSION_COOKIE_SECURE=False
 CORS_ORIGIN=http://localhost:5173
+```
 
 ---
 
 ## 🐛 Troubleshooting
 
-- MongoDB: Check `MONGODB_URI` format and permissions.
-- OpenAI: Verify `OPENAI_API_KEY` is active and has quota.
-- CORS issues: Confirm `CORS_ORIGIN` matches frontend URL.
-- Sessions: Ensure `FLASK_SECRET_KEY` is set and cookies are enabled in the browser.
+- 🔌 **MongoDB connection**: Check URI format and database access.
+- 🔐 **OpenAI access**: Ensure API key is valid and usage quota is sufficient.
+- ⚠️ **CORS errors**: Confirm the frontend origin matches `CORS_ORIGIN`.
+- 🍪 **Sessions**: Use a secure and unique `FLASK_SECRET_KEY`; confirm cookies are enabled in the browser.
 
 ---
 
 ## 📄 License
 
 MIT
+
+---
+
+## 📚 Citation
+
+If referencing QuantumAiEd in academic work, please cite:
+
+> Kevin Hernandez, Tirthak Patel.  
+> *Enhancing Early Quantum Computing Education with QuantumAiEd: Bridging the Educational Gap.*  
+> SIGCSETS 2025: Proceedings of the 56th ACM Technical Symposium on Computer Science Education V. 2, p. 1755.  
+> [https://doi.org/10.1145/3641555.3705028](https://doi.org/10.1145/3641555.3705028)  
+> Published: February 18, 2025. ACM.

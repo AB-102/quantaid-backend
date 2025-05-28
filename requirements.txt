@@ -1,7 +1,6 @@
-Flask==2.2.2
-Flask-Cors==3.0.10
-Werkzeug==2.2.2
-python-dotenv==0.20.0
-pymongo==4.1.1
+Flask>=2.2.2
+Flask-Cors>=3.0.10
+python-dotenv>=0.20.0
+pymongo[srv]>=4.1.1
+gridfs
 openai
-pymongo[srv]==4.1.1

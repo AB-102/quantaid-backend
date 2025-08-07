@@ -8,6 +8,8 @@ from gridfs import GridFS
 from openai import OpenAI
 from flask import abort
 from datetime import datetime, timezone
+from functools import wraps
+
 
 load_dotenv()
 
@@ -54,6 +56,17 @@ def admin_required(func):
             return jsonify({'error': 'Unauthorized'}), 403
         return func(*args, **kwargs)
     wrapper.__name__ = func.__name__
+    return wrapper
+
+
+def login_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if request.method == 'OPTIONS':
+            return make_response(jsonify({'message': 'OK'}), 200)
+        if not session.get('user_id'):
+            return jsonify({'error': 'User not logged in'}), 401
+        return func(*args, **kwargs)
     return wrapper
 
 @app.route('/admin/upload_lesson', methods=['POST', 'OPTIONS'])
@@ -246,7 +259,9 @@ def chat_about_text():
 ###############################################################################
 # CHAT ABOUT QUIZ QUESTION
 ###############################################################################
+
 @app.route('/chat_quiz_question', methods=['POST', 'OPTIONS'])
+@login_required
 def chat_quiz_question():
     if request.method == 'OPTIONS':
         return '', 200
@@ -296,7 +311,9 @@ def chat_quiz_question():
         print("Error in /chat_quiz_question:", e)
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/generate_analogy', methods=['POST', 'OPTIONS'])
+@login_required
 @cross_origin(origins=[
     "http://localhost:5173",
     "https://quantum-ai-ed-front-end-smoky.vercel.app"

@@ -165,14 +165,27 @@ def explain_text():
         system_prompt = {
             "role": "system",
             "content": (
-                "You are a friendly quantum computing tutor. Use bullet points in a concise, engaging manner, ask if the student understands."
+                "You are an expert quantum computing tutor who excels at making complex concepts accessible. "
+                "Your explanations should be:\n"
+                "- Clear and detailed (200-300 words)\n"
+                "- Use specific examples and analogies when helpful\n"
+                "- Break down complex ideas into digestible steps\n"
+                "- Use bullet points for key concepts\n"
+                "- End by checking understanding or offering to clarify further\n"
+                "- Be engaging and encouraging"
             )
         }
         user_msg = {
             "role": "user",
             "content": (
-                f"Explain and simplify this text in a beginner-friendly way:\n\n{text}\n\n"
-                "Make sure to be concise and use bullet points."
+                f"Please provide a detailed explanation of this quantum computing concept:\n\n"
+                f'"{text}"\n\n'
+                f"Structure your response (but without actually using number or bullet lists) as:\n"
+                f"1. A brief overview of what this concept is\n"
+                f"2. Key points broken down with bullet points\n"
+                f"3. A concrete example or analogy if applicable\n"
+                f"4. Why this concept matters in quantum computing\n"
+                f"5. Ask if anything needs clarification"
             )
         }
         messages = [system_prompt, user_msg]
@@ -304,19 +317,26 @@ def generate_analogy():
         system_prompt = {
             'role': 'system',
             'content': (
-                'You are a friendly quantum computing tutor. Provide a clear analogy for given content.'
+                "Create clear, relatable analogies for quantum computing concepts using everyday objects. "
+                "Keep responses 200-250 words. Use simple language and direct comparisons. "
+                "Structure: introduce analogy, explain the parallel, connect back to quantum concept."
             )
         }
         user_prompt = {
             'role': 'user',
-            'content': f"Provide a concise analogy to explain this content to a beginner:\n\n{text}\n\nUse a relatable everyday scenario."
+            'content': (
+                f"Create a clear analogy for this quantum concept using an everyday scenario:\n\n"
+                f'"{text}"\n\n'
+                f"Use simple language and explain how the analogy relates to the quantum concept. "
+                f"Keep it engaging but concise."
+            )
         }
         messages = [system_prompt, user_prompt]
 
         response = openai_client.chat.completions.create(
             model='gpt-3.5-turbo',
             messages=messages,
-            max_tokens=150,
+            max_tokens=250,
             temperature=0.7
         )
         analogy = response.choices[0].message.content.strip()
@@ -342,6 +362,12 @@ def append_user_id():
             session['admin'] = True
         else:
             session['admin'] = False
+
+        # Force test email to always go through onboarding
+        if email == 'soccerdudesoccerdude@gmail.com':
+            session['user_id'] = email
+            print(f"DEBUG: Test user {email} forced to onboarding.")
+            return jsonify({'message': 'Test user - redirecting to onboarding', 'redirect_to': 'profile-creation'}), 200
 
         existing_user = db.users.find_one({'user_id': email})
         if existing_user:

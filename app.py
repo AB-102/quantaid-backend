@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 
 load_dotenv()
 
+DEV_LOGIN_EMAIL = os.getenv("DEV_LOGIN_EMAIL")
+
 app = Flask(__name__)
 
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or os.urandom(24)
@@ -364,7 +366,7 @@ def append_user_id():
             session['admin'] = False
 
         # Force test email to always go through onboarding
-        if email == 'soccerdudesoccerdude@gmail.com':
+        if email == DEV_LOGIN_EMAIL:
             session['user_id'] = email
             print(f"DEBUG: Test user {email} forced to onboarding.")
             return jsonify({'message': 'Test user - redirecting to onboarding', 'redirect_to': 'profile-creation'}), 200
@@ -383,7 +385,8 @@ def append_user_id():
             new_user_data = {
                 'user_id': email, 'name': name, 'picture': picture,
                 'profile_complete': False, 'unlockedLevels': [0],
-                'completedQuizzes': [], 'createdAt': datetime.now(timezone.utc)
+                'completedQuizzes': [], 'hasViewedFirstLesson': False,
+                'createdAt': datetime.now(timezone.utc)
             }
             db.users.insert_one(new_user_data)
             session['user_id'] = email
@@ -421,23 +424,77 @@ def save_profile():
         if not user_doc:
             session.pop('user_id', None)
             return jsonify({'error': f"User not found with ID={user_id}. Please log in again."}), 404
-        major = data.get('other_major') if data.get('other_major') else data.get('college_major')
-        hobbies = data.get('favoriteHobbies', [])
-        if not isinstance(hobbies, list):
-            hobbies = [str(hobbies)] if hobbies else []
+        where_heard = data.get('whereHeard', [])
+        other_where_heard = data.get('otherWhereHeard', '')
+        education_category = data.get('educationCategory', '')  # 'HighSchool', 'College', or 'Other'
+        education_level = data.get('educationLevel', '')  # The specific level within category
+        other_education_level = data.get('otherEducationLevel', '')  # Custom education level
+        final_education_level = ''
+        if education_category == 'HighSchool':
+            final_education_level = f"High School - {education_level}"
+        elif education_category == 'College':
+            final_education_level = f"College - {education_level}"
+        elif education_category == 'Other' and other_education_level:
+            final_education_level = other_education_level
+        else:
+            # Fallback for backwards compatibility
+            final_education_level = data.get('educationLevel', '')
+        # Handle subjects (now an array instead of single major)
+        subjects = data.get('subjects', [])
+        other_subject = data.get('otherSubject', '')
+        # Combine subjects into a single string for backwards compatibility
+        # or potentially store as array if we update the data structure
+        subjects_list = subjects.copy()
+        if 'Other (please specify)' in subjects and other_subject:
+            subjects_list = [s for s in subjects_list if s != 'Other (please specify)']
+            subjects_list.append(other_subject)
+        major = ', '.join(subjects_list) if subjects_list else ''
+        favorite_hobbies = data.get('favoriteHobbies', [])
+        custom_hobbies = data.get('customHobbies', '').strip()
+        all_hobbies = favorite_hobbies.copy()
+        if custom_hobbies:
+            custom_hobby_list = [h.strip() for h in custom_hobbies.split(',') if h.strip()]
+            all_hobbies.extend(custom_hobby_list)
+        if not isinstance(all_hobbies, list):
+            all_hobbies = [str(all_hobbies)] if all_hobbies else []
+        knows_quantum = data.get('knowsQuantumComputing', 'No')
+        coding_experience = data.get('codingExperience', '')
         profile_data = {
-            'education_level': data.get('educationLevel'), 'major': major,
-            'knows_quantum_computing': data.get('knowsQuantumComputing'),
-            'coding_experience': data.get('codingExperience'),
-            'favorite_hobbies': hobbies,
-            'use_generic_analogies': data.get('use_generic_analogies', True)
+            'where_heard': where_heard,
+            'other_where_heard': other_where_heard,
+            'education_category': education_category,
+            'education_level': final_education_level,  # Combined/processed education level
+            'subjects_studied': subjects_list,  # Store as array for better data structure
+            'other_subject': other_subject,
+            # Existing fields (maintained for backwards compatibility)
+            'major': major,  # Combined subjects as string
+            'education_level_legacy': data.get('educationLevel', ''),  # Original field
+            'knows_quantum_computing': knows_quantum,
+            'coding_experience': coding_experience,
+            # Enhanced hobbies
+            'favorite_hobbies': all_hobbies,  # Combined predefined + custom
+            'custom_hobbies': custom_hobbies,  # Raw custom hobbies text
+            # Existing preferences
+            'use_generic_analogies': data.get('use_generic_analogies', True),
         }
         print("DEBUG: Constructed profile_data =>", profile_data)
         update_result = db.users.update_one(
             {'user_id': user_id},
             {'$set': {
                 'profile': profile_data, 'profile_complete': True,
-                'profileLastUpdatedAt': datetime.now(timezone.utc)
+                'profileLastUpdatedAt': datetime.now(timezone.utc),
+                # Store raw form data for analytics/debugging (optional)
+                'onboarding_responses': {
+                    'where_heard': where_heard,
+                    'other_where_heard': other_where_heard,
+                    'education_category': education_category,
+                    'subjects': subjects,
+                    'other_subject': other_subject,
+                    'favorite_hobbies': favorite_hobbies,
+                    'custom_hobbies': custom_hobbies,
+                    'coding_experience': coding_experience,
+                    'completed_at': datetime.now(timezone.utc)
+                }
             }}
         )
         if update_result.matched_count == 0:
@@ -550,6 +607,44 @@ def save_quiz_result():
         print(f"Error saving quiz result: {e}")
         return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
 
+@app.route('/save_first_lesson_view', methods=['POST'])
+@cross_origin(supports_credentials=True)
+def save_first_lesson_view():
+    """Save that user has viewed their first lesson"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'User not logged in'}), 401
+    
+    # Skip saving for test email
+    if user_id == DEV_LOGIN_EMAIL:
+        print(f"DEBUG: Skipping first lesson save for test user {user_id}")
+        return jsonify({'message': 'Test user - onboarding state not saved'}), 200
+    
+    try:
+        # Update the user document to mark that they've viewed their first lesson
+        update_result = db.users.update_one(
+            {'user_id': user_id},
+            {
+                '$set': {
+                    'hasViewedFirstLesson': True,
+                    'firstLessonViewedAt': datetime.now(timezone.utc)
+                }
+            }
+        )
+        
+        if update_result.matched_count == 0:
+            return jsonify({'error': 'User not found'}), 404
+        
+        print(f"DEBUG: First lesson view saved for user {user_id}")
+        return jsonify({'message': 'First lesson view saved successfully'}), 200
+        
+    except PyMongoError as e:
+        print(f"Error saving first lesson view (MongoDB): {e}")
+        return jsonify({'error': f'Database error: {e}'}), 500
+    except Exception as e:
+        print(f"Error saving first lesson view: {e}")
+        return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
+
 @app.route('/get_user_progress', methods=['GET']) # Removed OPTIONS
 @cross_origin(supports_credentials=True) # Decorator handles OPTIONS
 def get_user_progress():
@@ -561,17 +656,28 @@ def get_user_progress():
     try:
         user = db.users.find_one(
             {'user_id': user_id},
-            {'_id': 0, 'unlockedLevels': 1, 'completedQuizzes': 1}
+            {
+                '_id': 0,
+                'unlockedLevels': 1,
+                'completedQuizzes': 1,
+                'hasViewedFirstLesson': 1
+            }
         )
         if not user:
             session.pop('user_id', None)
             return jsonify({'error': 'User data not found for this session'}), 404
         unlocked_levels = user.get('unlockedLevels', [0])
         completed_quizzes = user.get('completedQuizzes', [])
+        has_viewed_first_lesson = user.get('hasViewedFirstLesson', False)
+        # Force test email to always show onboarding
+        if user_id == DEV_LOGIN_EMAIL:
+            has_viewed_first_lesson = False
+            print(f"DEBUG: Test user {user_id} - forcing hasViewedFirstLesson to False")
         print(f"DEBUG: Fetched progress for user {user_id}: Unlocked {unlocked_levels}")
         return jsonify({
             'unlockedLevels': unlocked_levels,
-            'completedQuizzes': completed_quizzes
+            'completedQuizzes': completed_quizzes,
+            'hasViewedFirstLesson': has_viewed_first_lesson
             }), 200
     except PyMongoError as e:
         print(f"Error fetching user progress (MongoDB): {e}")
@@ -579,6 +685,153 @@ def get_user_progress():
     except Exception as e:
         print(f"Error fetching user progress: {e}")
         return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
+
+@app.route('/submit_feedback', methods=['POST'])
+@cross_origin(supports_credentials=True)
+def submit_feedback():
+    """
+    Handle feedback submissions from the frontend.
+    Accepts both JSON data and form data (for file uploads).
+    """
+    try:
+        # Get user_id from session if available (optional for feedback)
+        user_id = session.get('user_id', 'anonymous')
+        
+        # Handle different content types
+        if request.content_type and 'multipart/form-data' in request.content_type:
+            # Form data (when files are included)
+            category = request.form.get('category', '')
+            feedback_text = request.form.get('feedback', '')
+            
+            # Handle file upload (screenshot)
+            screenshot_id = None
+            if 'screenshot' in request.files:
+                screenshot_file = request.files['screenshot']
+                if screenshot_file and screenshot_file.filename:
+                    # Store the file in GridFS
+                    screenshot_id = fs.put(
+                        screenshot_file, 
+                        filename=screenshot_file.filename,
+                        content_type=screenshot_file.content_type
+                    )
+        else:
+            # JSON data (no files)
+            data = request.json or {}
+            category = data.get('category', '')
+            feedback_text = data.get('feedback', '')
+            screenshot_id = None
+        
+        # Validate required fields
+        if not category or not feedback_text.strip():
+            return jsonify({'error': 'Category and feedback text are required'}), 400
+        
+        # Create feedback document
+        feedback_doc = {
+            'user_id': user_id,
+            'category': category,
+            'feedback': feedback_text.strip(),
+            'screenshot_id': screenshot_id,
+            'status': 'open',  # Can be 'open', 'in_progress', 'resolved'
+            'created_at': datetime.now(timezone.utc),
+            'updated_at': datetime.now(timezone.utc)
+        }
+        
+        # Save to MongoDB
+        result = db.feedback.insert_one(feedback_doc)
+        
+        print(f"DEBUG: Feedback submitted by user {user_id}, category: {category}")
+        
+        return jsonify({
+            'message': 'Feedback submitted successfully',
+            'feedback_id': str(result.inserted_id)
+        }), 200
+        
+    except PyMongoError as e:
+        print(f"Error saving feedback (MongoDB): {e}")
+        return jsonify({'error': 'Database error occurred'}), 500
+    except Exception as e:
+        print(f"Error in /submit_feedback: {e}")
+        return jsonify({'error': 'An unexpected error occurred'}), 500
+
+
+# Optional: Route to get feedback file (screenshot)
+@app.route('/feedback_file/<file_id>', methods=['GET'])
+@admin_required  # Only admins should access feedback files
+def get_feedback_file(file_id):
+    """
+    Retrieve uploaded feedback files (screenshots) by ID.
+    Only accessible to admin users.
+    """
+    try:
+        from bson import ObjectId
+        from flask import Response
+        
+        # Get file from GridFS
+        file_obj = fs.get(ObjectId(file_id))
+        
+        # Return file as response
+        return Response(
+            file_obj.read(),
+            mimetype=file_obj.content_type or 'application/octet-stream',
+            headers={
+                'Content-Disposition': f'inline; filename="{file_obj.filename}"'
+            }
+        )
+    except Exception as e:
+        print(f"Error retrieving feedback file {file_id}: {e}")
+        return jsonify({'error': 'File not found'}), 404
+
+
+# Optional: Admin route to view all feedback
+@app.route('/admin/feedback', methods=['GET'])
+@admin_required
+@cross_origin(supports_credentials=True)
+def get_all_feedback():
+    """
+    Get all feedback submissions for admin review.
+    """
+    try:
+        # Get query parameters for filtering/pagination
+        status = request.args.get('status', None)  # Filter by status
+        limit = int(request.args.get('limit', 50))  # Limit results
+        skip = int(request.args.get('skip', 0))  # For pagination
+        
+        # Build query
+        query = {}
+        if status:
+            query['status'] = status
+        
+        # Get feedback with pagination
+        feedback_list = list(
+            db.feedback.find(query, {'_id': 1, 'user_id': 1, 'category': 1, 
+                                   'feedback': 1, 'status': 1, 'created_at': 1,
+                                   'screenshot_id': 1})
+            .sort('created_at', -1)  # Most recent first
+            .skip(skip)
+            .limit(limit)
+        )
+        
+        # Convert ObjectIds to strings for JSON serialization
+        for feedback in feedback_list:
+            feedback['_id'] = str(feedback['_id'])
+            if feedback.get('screenshot_id'):
+                feedback['screenshot_id'] = str(feedback['screenshot_id'])
+                feedback['has_screenshot'] = True
+            else:
+                feedback['has_screenshot'] = False
+        
+        # Get total count for pagination
+        total_count = db.feedback.count_documents(query)
+        
+        return jsonify({
+            'feedback': feedback_list,
+            'total_count': total_count,
+            'has_more': (skip + len(feedback_list)) < total_count
+        }), 200
+        
+    except Exception as e:
+        print(f"Error fetching feedback: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/ping', methods=['GET'])
 # No @cross_origin needed if it doesn't require credentials or special headers

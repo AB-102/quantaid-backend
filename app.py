@@ -429,7 +429,6 @@ def save_profile():
         education_category = data.get('educationCategory', '')  # 'HighSchool', 'College', or 'Other'
         education_level = data.get('educationLevel', '')  # The specific level within category
         other_education_level = data.get('otherEducationLevel', '')  # Custom education level
-        final_education_level = ''
         if education_category == 'HighSchool':
             final_education_level = f"High School - {education_level}"
         elif education_category == 'College':
@@ -437,18 +436,14 @@ def save_profile():
         elif education_category == 'Other' and other_education_level:
             final_education_level = other_education_level
         else:
-            # Fallback for backwards compatibility
-            final_education_level = data.get('educationLevel', '')
+            final_education_level = '' # Or raised an error if required
         # Handle subjects (now an array instead of single major)
         subjects = data.get('subjects', [])
         other_subject = data.get('otherSubject', '')
-        # Combine subjects into a single string for backwards compatibility
-        # or potentially store as array if we update the data structure
         subjects_list = subjects.copy()
         if 'Other (please specify)' in subjects and other_subject:
             subjects_list = [s for s in subjects_list if s != 'Other (please specify)']
             subjects_list.append(other_subject)
-        major = ', '.join(subjects_list) if subjects_list else ''
         favorite_hobbies = data.get('favoriteHobbies', [])
         custom_hobbies = data.get('customHobbies', '').strip()
         all_hobbies = favorite_hobbies.copy()
@@ -457,7 +452,7 @@ def save_profile():
             all_hobbies.extend(custom_hobby_list)
         if not isinstance(all_hobbies, list):
             all_hobbies = [str(all_hobbies)] if all_hobbies else []
-        knows_quantum = data.get('knowsQuantumComputing', 'No')
+        # knows_quantum = data.get('knowsQuantumComputing', 'No')
         coding_experience = data.get('codingExperience', '')
         profile_data = {
             'where_heard': where_heard,
@@ -466,16 +461,13 @@ def save_profile():
             'education_level': final_education_level,  # Combined/processed education level
             'subjects_studied': subjects_list,  # Store as array for better data structure
             'other_subject': other_subject,
-            # Existing fields (maintained for backwards compatibility)
-            'major': major,  # Combined subjects as string
-            'education_level_legacy': data.get('educationLevel', ''),  # Original field
-            'knows_quantum_computing': knows_quantum,
+            # 'knows_quantum_computing': knows_quantum,
             'coding_experience': coding_experience,
             # Enhanced hobbies
             'favorite_hobbies': all_hobbies,  # Combined predefined + custom
             'custom_hobbies': custom_hobbies,  # Raw custom hobbies text
             # Existing preferences
-            'use_generic_analogies': data.get('use_generic_analogies', True),
+            # 'use_generic_analogies': data.get('use_generic_analogies', True),
         }
         print("DEBUG: Constructed profile_data =>", profile_data)
         update_result = db.users.update_one(
@@ -536,7 +528,7 @@ def get_user_profile():
             'educationLevel': profile.get('education_level', 'Not provided'),
             'major': profile.get('major', 'Not provided'),
             'favoriteHobbies': profile.get('favorite_hobbies', []),
-            'use_generic_analogies': profile.get('use_generic_analogies', True)
+            # 'use_generic_analogies': profile.get('use_generic_analogies', True)
         }
         return jsonify(response_data), 200
     except PyMongoError as e:

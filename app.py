@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify, session, make_response
+from flask import Flask, request, jsonify, session, make_response, Response
 from flask_cors import CORS, cross_origin # Keep cross_origin import
 from pymongo.mongo_client import MongoClient
 from pymongo.errors import PyMongoError
@@ -8,10 +8,14 @@ from gridfs import GridFS
 from openai import OpenAI
 from flask import abort
 from datetime import datetime, timezone
+import csv
+import io
+from bson import ObjectId
 
 load_dotenv()
 
-DEV_LOGIN_EMAIL = os.getenv("DEV_LOGIN_EMAIL")
+FIRST_TIME_USER_EMAIL = os.getenv("FIRST_TIME_USER_EMAIL")
+ADMIN_EMAILS = set(email.strip().lower() for email in os.getenv("ADMIN_EMAILS", "").split(",") if email.strip())
 
 app = Flask(__name__)
 
@@ -360,16 +364,18 @@ def append_user_id():
         if not email:
             return jsonify({'error': 'Email is required'}), 400
         email = email.lower()
-        if email == 'kh78@rice.edu':
+        if email in ADMIN_EMAILS:
             session['admin'] = True
         else:
             session['admin'] = False
 
+        is_admin = session.get('admin', False)
+
         # Force test email to always go through onboarding
-        if email == DEV_LOGIN_EMAIL:
+        if email == FIRST_TIME_USER_EMAIL:
             session['user_id'] = email
             print(f"DEBUG: Test user {email} forced to onboarding.")
-            return jsonify({'message': 'Test user - redirecting to onboarding', 'redirect_to': 'profile-creation'}), 200
+            return jsonify({'message': 'Test user - redirecting to onboarding', 'redirect_to': 'profile-creation', 'is_admin': is_admin}), 200
 
         existing_user = db.users.find_one({'user_id': email})
         if existing_user:
@@ -377,10 +383,10 @@ def append_user_id():
             print(f"DEBUG: User {email} logged in. Session ID set.")
             if existing_user.get('profile_complete'):
                 print(f"DEBUG: User {email} exists and profile is complete.")
-                return jsonify({'message': 'User exists and profile is complete', 'redirect_to': 'map'}), 200
+                return jsonify({'message': 'User exists and profile is complete', 'redirect_to': 'map', 'is_admin': is_admin}), 200
             else:
                 print(f"DEBUG: User {email} exists but profile incomplete.")
-                return jsonify({'message': 'User exists but profile incomplete', 'redirect_to': 'profile-creation'}), 200
+                return jsonify({'message': 'User exists but profile incomplete', 'redirect_to': 'profile-creation', 'is_admin': is_admin}), 200
         else:
             new_user_data = {
                 'user_id': email, 'name': name, 'picture': picture,
@@ -391,7 +397,7 @@ def append_user_id():
             db.users.insert_one(new_user_data)
             session['user_id'] = email
             print(f"DEBUG: New user {email} created. Session ID set.")
-            return jsonify({'message': 'User data saved to MongoDB', 'redirect_to': 'profile-creation'}), 201
+            return jsonify({'message': 'User data saved to MongoDB', 'redirect_to': 'profile-creation', 'is_admin': is_admin}), 201
     except PyMongoError as e:
         print(f"Error in /append_user_id (MongoDB): {e}")
         return jsonify({'error': f'Database error: {e}'}), 500
@@ -608,7 +614,7 @@ def save_first_lesson_view():
         return jsonify({'error': 'User not logged in'}), 401
     
     # Skip saving for test email
-    if user_id == DEV_LOGIN_EMAIL:
+    if user_id == FIRST_TIME_USER_EMAIL:
         print(f"DEBUG: Skipping first lesson save for test user {user_id}")
         return jsonify({'message': 'Test user - onboarding state not saved'}), 200
     
@@ -662,7 +668,7 @@ def get_user_progress():
         completed_quizzes = user.get('completedQuizzes', [])
         has_viewed_first_lesson = user.get('hasViewedFirstLesson', False)
         # Force test email to always show onboarding
-        if user_id == DEV_LOGIN_EMAIL:
+        if user_id == FIRST_TIME_USER_EMAIL:
             has_viewed_first_lesson = False
             print(f"DEBUG: Test user {user_id} - forcing hasViewedFirstLesson to False")
         print(f"DEBUG: Fetched progress for user {user_id}: Unlocked {unlocked_levels}")
@@ -755,9 +761,6 @@ def get_feedback_file(file_id):
     Only accessible to admin users.
     """
     try:
-        from bson import ObjectId
-        from flask import Response
-        
         # Get file from GridFS
         file_obj = fs.get(ObjectId(file_id))
         
@@ -823,6 +826,77 @@ def get_all_feedback():
         
     except Exception as e:
         print(f"Error fetching feedback: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/feedback/export', methods=['GET'])
+@admin_required
+@cross_origin(supports_credentials=True)
+def export_feedback_csv():
+    """Export all feedback as a CSV file download."""
+    try:
+        status = request.args.get('status', None)
+        query = {}
+        if status:
+            query['status'] = status
+
+        feedback_list = list(
+            db.feedback.find(query, {
+                'user_id': 1, 'category': 1, 'feedback': 1,
+                'status': 1, 'created_at': 1, 'screenshot_id': 1
+            }).sort('created_at', -1)
+        )
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['Date', 'User', 'Category', 'Status', 'Feedback', 'Has Screenshot'])
+
+        for fb in feedback_list:
+            created = fb.get('created_at', '')
+            if isinstance(created, datetime):
+                created = created.strftime('%Y-%m-%d %H:%M:%S UTC')
+            writer.writerow([
+                created,
+                fb.get('user_id', 'anonymous'),
+                fb.get('category', ''),
+                fb.get('status', 'open'),
+                fb.get('feedback', ''),
+                'Yes' if fb.get('screenshot_id') else 'No'
+            ])
+
+        return Response(
+            output.getvalue(),
+            mimetype='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=feedback_export.csv'}
+        )
+
+    except Exception as e:
+        print(f"Error exporting feedback: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/feedback/<feedback_id>/status', methods=['PATCH'])
+@admin_required
+@cross_origin(supports_credentials=True)
+def update_feedback_status(feedback_id):
+    """Update the status of a feedback submission."""
+    try:
+        data = request.json or {}
+        new_status = data.get('status', '')
+
+        if new_status not in ('open', 'in_progress', 'resolved'):
+            return jsonify({'error': 'Invalid status. Must be open, in_progress, or resolved.'}), 400
+
+        result = db.feedback.update_one(
+            {'_id': ObjectId(feedback_id)},
+            {'$set': {'status': new_status, 'updated_at': datetime.now(timezone.utc)}}
+        )
+
+        if result.matched_count == 0:
+            return jsonify({'error': 'Feedback not found'}), 404
+
+        return jsonify({'message': 'Status updated', 'status': new_status}), 200
+
+    except Exception as e:
+        print(f"Error updating feedback status: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/ping', methods=['GET'])

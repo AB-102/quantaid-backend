@@ -415,6 +415,18 @@ def get_user_id():
         return jsonify({'error': 'User ID not found in session'}), 401
     return jsonify({'user_id': uid}), 200
 
+@app.route('/auth/check', methods=['GET'])
+@cross_origin(supports_credentials=True)
+def auth_check():
+    """Check current session auth state."""
+    user_id = session.get('user_id')
+    is_admin = session.get('admin', False)
+    return jsonify({
+        'logged_in': user_id is not None,
+        'is_admin': bool(is_admin),
+        'user_id': user_id
+    }), 200
+
 @app.route('/save_profile', methods=['POST']) # Removed OPTIONS
 @cross_origin(supports_credentials=True) # Decorator handles OPTIONS
 def save_profile():
@@ -848,19 +860,22 @@ def export_feedback_csv():
 
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(['Date', 'User', 'Category', 'Status', 'Feedback', 'Has Screenshot'])
+        writer.writerow(['Date', 'User', 'Category', 'Status', 'Feedback', 'Screenshot URL'])
 
         for fb in feedback_list:
             created = fb.get('created_at', '')
             if isinstance(created, datetime):
                 created = created.strftime('%Y-%m-%d %H:%M:%S UTC')
+            screenshot_url = ''
+            if fb.get('screenshot_id'):
+                screenshot_url = f"{request.host_url}feedback_file/{fb['screenshot_id']}"
             writer.writerow([
                 created,
                 fb.get('user_id', 'anonymous'),
                 fb.get('category', ''),
                 fb.get('status', 'open'),
                 fb.get('feedback', ''),
-                'Yes' if fb.get('screenshot_id') else 'No'
+                screenshot_url
             ])
 
         return Response(
@@ -897,6 +912,29 @@ def update_feedback_status(feedback_id):
 
     except Exception as e:
         print(f"Error updating feedback status: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/feedback/<feedback_id>', methods=['DELETE'])
+@admin_required
+@cross_origin(supports_credentials=True)
+def delete_feedback(feedback_id):
+    """Delete a feedback submission and its associated screenshot."""
+    try:
+        feedback = db.feedback.find_one({'_id': ObjectId(feedback_id)})
+        if not feedback:
+            return jsonify({'error': 'Feedback not found'}), 404
+
+        if feedback.get('screenshot_id'):
+            try:
+                fs.delete(feedback['screenshot_id'])
+            except Exception as e:
+                print(f"Warning: Could not delete screenshot {feedback['screenshot_id']}: {e}")
+
+        db.feedback.delete_one({'_id': ObjectId(feedback_id)})
+        return jsonify({'message': 'Feedback deleted successfully'}), 200
+
+    except Exception as e:
+        print(f"Error deleting feedback: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/ping', methods=['GET'])

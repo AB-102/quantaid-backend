@@ -93,8 +93,6 @@ QuantumAiEdBackEnd/
 │   └── mongo.py               # MongoClient, db, GridFS
 ├── models/
 │   └── user.py                # Flask-Login UserMixin with derived auth methods
-├── scripts/
-│   └── migrate_auth_schema.py # One-time migration for auth schema (already run)
 └── tests/
     ├── conftest.py            # Shared fixtures, test user cleanup
     ├── test_auth_service.py   # Unit tests for auth business logic

@@ -1,6 +1,11 @@
 Flask>=2.2.2
 Flask-Cors>=3.0.10
+Flask-Login>=0.6.3
+Flask-Limiter>=3.5.0
 python-dotenv>=0.20.0
 pymongo[srv]>=4.1.1
 # gridfs
 openai
+passlib[argon2]>=1.7.4
+argon2-cffi>=23.1.0
+resend>=2.0.0

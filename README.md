@@ -1,6 +1,6 @@
 # Quantaid Backend
 
-Backend API for Quantaid, an AI-driven quantum computing education platform educational platform that generates feedback, analogies, explanations, and personalized quizzes for quantum computing instruction built at Rice University. Serves a React/Vite frontend with personalized lesson content, quizzes, and AI-powered explanations.
+Backend API for Quantaid, an AI-driven quantum computing education platform that generates feedback, analogies, explanations, and personalized quizzes for quantum computing instruction built at Rice University. Serves a React/Vite frontend with personalized lesson content, quizzes, and AI-powered explanations.
 
 ## Deployed Frontend
 

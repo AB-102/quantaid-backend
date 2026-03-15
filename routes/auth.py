@@ -35,7 +35,7 @@ def signup():
 
     existing = get_user_by_email(email)
     if existing:
-        # Don't reveal that the email is taken (email enumeration prevention)
+        # Return a conflict when the email is already registered.
         return jsonify({'error': 'Invalid email or this account already exists.'}), 409
 
     user = create_email_user(email, password, name)

@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 from passlib.hash import argon2
 from database.mongo import db
 from models.user import User
+from pymongo import ReturnDocument
 
 # Account lockout settings
 MAX_FAILED_ATTEMPTS = 5
@@ -117,7 +118,7 @@ def _record_failed_attempt(email: str):
     result = db.users.find_one_and_update(
         {'user_id': email.lower()},
         {'$inc': {'failed_login_attempts': 1}},
-        return_document=True,
+        return_document=ReturnDocument.AFTER,
     )
     if result and result.get('failed_login_attempts', 0) >= MAX_FAILED_ATTEMPTS:
         db.users.update_one(

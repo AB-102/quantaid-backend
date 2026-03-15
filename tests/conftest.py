@@ -39,4 +39,10 @@ def cleanup_test_users():
     """Remove any test users created during the test."""
     yield
     from database.mongo import db
+    db_name = str(getattr(db, "name", "")).lower()
+    if "test" not in db_name:
+        raise RuntimeError(
+            f"Refusing to run cleanup_test_users against non-test database '{db_name}'. "
+            "Ensure your MONGODB_URI points at a test database whose name includes 'test'."
+        )
     db.users.delete_many({'user_id': {'$regex': f'^{TEST_USER_PREFIX}'}})

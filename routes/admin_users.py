@@ -84,6 +84,7 @@ def get_all_users():
 def toggle_disable_user(email):
     """Toggle the disabled state of a user account."""
     try:
+        email = email.strip().lower()
         user = db.users.find_one({'user_id': email}, {'disabled': 1})
         if not user:
             return jsonify({'error': 'User not found'}), 404

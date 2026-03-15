@@ -149,8 +149,7 @@ QuantumAiEdBackEnd/
 | POST | `/admin/upload_reading` | Upload reading media to GridFS |
 | POST | `/admin/upload_quiz` | Upload quiz content |
 | GET | `/admin/users` | List all users with metadata |
-| POST | `/admin/users/<email>/disable` | Disable a user account |
-| POST | `/admin/users/<email>/enable` | Re-enable a user account |
+| PATCH | `/admin/users/<email>/disable` | Toggle a user account's enabled/disabled state |
 | GET | `/admin/feedback` | List feedback submissions |
 | DELETE | `/admin/feedback/<id>` | Delete a feedback entry |
 

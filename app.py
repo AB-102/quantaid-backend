@@ -106,9 +106,13 @@ app.register_blueprint(admin_users_bp)
 
 @app.route('/file/<file_id>', methods=['GET'])
 def serve_file(file_id):
-    """Serve files from GridFS (profile pictures, feedback screenshots, etc.)."""
+    """Serve public files from GridFS. Files tagged visibility='admin' are blocked."""
     try:
         file_obj = fs.get(ObjectId(file_id))
+        # Only serve files explicitly tagged as public (or legacy files without a tag)
+        visibility = getattr(file_obj, 'visibility', 'public') or 'public'
+        if visibility == 'admin':
+            return jsonify({'error': 'File not found'}), 404
         return Response(
             file_obj.read(),
             mimetype=file_obj.content_type or 'application/octet-stream',

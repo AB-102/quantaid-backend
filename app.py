@@ -9,6 +9,7 @@ from bson import ObjectId
 from config import FLASK_SECRET_KEY, CORS_ORIGINS, SESSION_LIFETIME_MINUTES
 from database.mongo import mongo_client, db, fs
 from models.user import User
+import logging
 
 # --- Import Blueprints ---
 from routes.auth import auth_bp
@@ -126,7 +127,8 @@ def ping():
         mongo_client.admin.command('ping')
         db_status = "connected"
     except Exception as e:
-        db_status = f"error ({e})"
+        logging.exception("MongoDB ping failed")
+        db_status = "error"
     return jsonify({'status': 'pong', 'database': db_status}), 200
 
 

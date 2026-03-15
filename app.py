@@ -22,8 +22,17 @@ from routes.admin_users import admin_users_bp
 app = Flask(__name__)
 
 app.secret_key = FLASK_SECRET_KEY
+
+flask_env = os.getenv("FLASK_ENV", "").lower()
+default_secure = flask_env == "production"
+session_cookie_secure_env = os.getenv("SESSION_COOKIE_SECURE")
+if session_cookie_secure_env is not None:
+    session_cookie_secure = session_cookie_secure_env.lower() in ("1", "true", "yes")
+else:
+    session_cookie_secure = default_secure
+
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
-app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SECURE'] = session_cookie_secure
 app.config['SESSION_COOKIE_HTTPONLY'] = True        # JS can't read the cookie
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=SESSION_LIFETIME_MINUTES)
 

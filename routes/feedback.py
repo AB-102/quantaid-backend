@@ -33,7 +33,8 @@ def submit_feedback():
                     screenshot_id = fs.put(
                         screenshot_file,
                         filename=screenshot_file.filename,
-                        content_type=screenshot_file.content_type
+                        content_type=screenshot_file.content_type,
+                        visibility='admin'
                     )
         else:
             data = request.json or {}

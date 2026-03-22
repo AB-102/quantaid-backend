@@ -25,15 +25,12 @@ app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
 
 flask_env = os.getenv("FLASK_ENV", "").lower()
-default_secure = flask_env == "production"
-session_cookie_secure_env = os.getenv("SESSION_COOKIE_SECURE")
-if session_cookie_secure_env is not None:
-    session_cookie_secure = session_cookie_secure_env.lower() in ("1", "true", "yes")
-else:
-    session_cookie_secure = default_secure
+is_production = flask_env == "production"
 
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'
-app.config['SESSION_COOKIE_SECURE'] = session_cookie_secure
+# SameSite=None + Secure=True for cross-site production (e.g., Vercel → backend)
+# SameSite=Lax + Secure=False for same-site development (localhost:5173 → localhost:5000)
+app.config['SESSION_COOKIE_SAMESITE'] = 'None' if is_production else 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = is_production
 app.config['SESSION_COOKIE_HTTPONLY'] = True        # JS can't read the cookie
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=SESSION_LIFETIME_MINUTES)
 

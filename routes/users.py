@@ -266,7 +266,8 @@ def save_profile_picture():
             picture_file,
             filename=picture_file.filename,
             content_type=picture_file.content_type or 'image/png',
-            user_id=user_id
+            user_id=user_id,
+            visibility='public'
         )
         picture_url = f"/file/{str(picture_id)}"
         # Update user document

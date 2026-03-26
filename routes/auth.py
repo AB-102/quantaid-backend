@@ -71,6 +71,13 @@ def login():
     if not user:
         return jsonify({'error': error}), 401
 
+    # Refresh admin status from ADMIN_EMAILS (source of truth)
+    is_admin = email in ADMIN_EMAILS
+    if user.is_admin != is_admin:
+        from database.mongo import db
+        db.users.update_one({'user_id': email}, {'$set': {'is_admin': is_admin}})
+        user.is_admin = is_admin
+
     login_user(user)
     session['login_id'] = user.login_id
 

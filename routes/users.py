@@ -1,3 +1,4 @@
+import requests as http_requests
 from flask import Blueprint, request, jsonify, session
 from flask_cors import cross_origin
 from flask_login import login_user, logout_user, current_user
@@ -8,6 +9,8 @@ from config import FIRST_TIME_USER_EMAIL, ADMIN_EMAILS
 from database.mongo import db, fs
 from models.user import User
 from services.auth_service import generate_login_id
+
+GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
 
 users_bp = Blueprint('users', __name__)
 
@@ -23,18 +26,33 @@ def append_user_id():
       2. Match by email (implicit linking: email-signup user now using Google) — link account
       3. No match — create new user
 
-    The frontend sends google_sub (the `sub` field from Google's userinfo),
-    which is Google's immutable unique user ID.
+    The frontend sends the Google access_token; this endpoint verifies it
+    server-side by calling Google's userinfo API to extract email and sub.
     """
     try:
         data = request.json or {}
-        email = data.get('user_id')
-        name = data.get('name')
-        picture = data.get('picture')
-        google_sub = data.get('google_sub')  # Google's unique user ID
-        if not email:
-            return jsonify({'error': 'Email is required'}), 400
-        email = email.lower()
+
+        # Verify Google access token server-side
+        access_token = data.get('access_token')
+        if not access_token:
+            return jsonify({'error': 'Google access_token is required'}), 400
+
+        google_resp = http_requests.get(
+            GOOGLE_USERINFO_URL,
+            headers={'Authorization': f'Bearer {access_token}'},
+            timeout=10,
+        )
+        if google_resp.status_code != 200:
+            return jsonify({'error': 'Invalid or expired Google token'}), 401
+
+        google_data = google_resp.json()
+        email = google_data.get('email', '').lower()
+        name = google_data.get('name')
+        picture = google_data.get('picture')
+        google_sub = google_data.get('sub')
+
+        if not email or not google_sub:
+            return jsonify({'error': 'Could not verify Google identity'}), 401
         is_admin = email in ADMIN_EMAILS
 
         # Force test email to always go through onboarding
@@ -60,7 +78,7 @@ def append_user_id():
             login_user(user)
             session['login_id'] = user.login_id
             print(f"DEBUG: Test user {email} forced to onboarding.")
-            return jsonify({'message': 'Test user - redirecting to onboarding', 'redirect_to': 'profile-creation', 'is_admin': is_admin}), 200
+            return jsonify({'message': 'Test user - redirecting to onboarding', 'redirect_to': 'profile-creation', 'is_admin': is_admin, 'email': email}), 200
 
         # --- Identity resolution ---
         existing_user = None
@@ -114,9 +132,9 @@ def append_user_id():
 
             print(f"DEBUG: User {email} logged in via Google SSO.")
             if existing_user.get('profile_complete'):
-                return jsonify({'message': 'User exists and profile is complete', 'redirect_to': 'map', 'is_admin': is_admin}), 200
+                return jsonify({'message': 'User exists and profile is complete', 'redirect_to': 'map', 'is_admin': is_admin, 'email': email}), 200
             else:
-                return jsonify({'message': 'User exists but profile incomplete', 'redirect_to': 'profile-creation', 'is_admin': is_admin}), 200
+                return jsonify({'message': 'User exists but profile incomplete', 'redirect_to': 'profile-creation', 'is_admin': is_admin, 'email': email}), 200
         else:
             # 3. New user — create with Google SSO
             login_id = generate_login_id()
@@ -134,7 +152,7 @@ def append_user_id():
             session['login_id'] = login_id
 
             print(f"DEBUG: New Google user {email} (sub={google_sub}) created and logged in.")
-            return jsonify({'message': 'User data saved to MongoDB', 'redirect_to': 'profile-creation', 'is_admin': is_admin}), 201
+            return jsonify({'message': 'User data saved to MongoDB', 'redirect_to': 'profile-creation', 'is_admin': is_admin, 'email': email}), 201
     except PyMongoError as e:
         print(f"Error in /append_user_id (MongoDB): {e}")
         return jsonify({'error': f'Database error: {e}'}), 500

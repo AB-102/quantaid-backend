@@ -3,6 +3,7 @@ from flask_cors import cross_origin
 from flask_login import current_user
 from pymongo.errors import PyMongoError
 from bson import ObjectId
+from bson.errors import InvalidId
 from datetime import datetime, timezone
 import csv
 import io
@@ -80,6 +81,8 @@ def get_feedback_file(file_id):
     Only accessible to admin users.
     """
     try:
+        if not ObjectId.is_valid(file_id):
+            return jsonify({'error': 'Invalid file ID'}), 400
         file_obj = fs.get(ObjectId(file_id))
 
         return Response(
@@ -192,6 +195,8 @@ def export_feedback_csv():
 @cross_origin(supports_credentials=True)
 def update_feedback_status(feedback_id):
     """Update the status of a feedback submission."""
+    if not ObjectId.is_valid(feedback_id):
+        return jsonify({'error': 'Invalid feedback ID'}), 400
     try:
         data = request.json or {}
         new_status = data.get('status', '')
@@ -219,6 +224,8 @@ def update_feedback_status(feedback_id):
 @cross_origin(supports_credentials=True)
 def delete_feedback(feedback_id):
     """Delete a feedback submission and its associated screenshot."""
+    if not ObjectId.is_valid(feedback_id):
+        return jsonify({'error': 'Invalid feedback ID'}), 400
     try:
         feedback = db.feedback.find_one({'_id': ObjectId(feedback_id)})
         if not feedback:

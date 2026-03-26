@@ -187,6 +187,12 @@ def reorder_lessons():
     if not isinstance(order, list) or len(order) == 0:
         return jsonify({'error': 'order must be a non-empty array of courseIds'}), 400
 
+    # Validate all courseIds exist before reordering
+    existing_ids = {doc['courseId'] for doc in db.lessons_v2.find({}, {'courseId': 1, '_id': 0})}
+    missing = [cid for cid in order if cid not in existing_ids]
+    if missing:
+        return jsonify({'error': f'Unknown courseIds: {missing}'}), 400
+
     # Use a temporary offset to avoid duplicate courseId conflicts during swap
     temp_offset = 10000
     now = datetime.now(timezone.utc)

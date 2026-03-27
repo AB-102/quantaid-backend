@@ -1,0 +1,28 @@
+# Virtual environment
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Tooling caches
+.ruff_cache/
+
+# Env
+.env
+
+# Git and IDE
+.git/
+.gitignore
+.vscode/
+
+# Node
+node_modules/
+package.json
+package-lock.json
+
+# Docs
+README.md
+
+# Tests and scripts (not needed in prod)
+tests/
+scripts/

@@ -1,172 +1,195 @@
-# QuantumAiEdBackEnd
+# Quantaid Backend
 
-QuantumAiEd is an AI-driven educational platform that generates feedback, analogies, explanations, and personalized quizzes for quantum computing instruction. This repository contains the backend API, built with Flask, OpenAI, and MongoDB, designed to support dynamic educational content generation and progress tracking.
+Backend API for Quantaid, an AI-driven quantum computing education platform that generates feedback, analogies, explanations, and personalized quizzes for quantum computing instruction built at Rice University. Serves a React/Vite frontend with personalized lesson content, quizzes, and AI-powered explanations.
 
----
+## Deployed Frontend
 
-## 🌐 Deployed Frontend
+[https://quantum-ai-ed-front-end-smoky.vercel.app/](https://quantum-ai-ed-front-end-smoky.vercel.app/)
 
-🔗 [https://quantum-ai-ed-front-end-smoky.vercel.app/](https://quantum-ai-ed-front-end-smoky.vercel.app/)
+## Tech Stack
 
----
+- **Framework:** Flask (Python)
+- **Database:** MongoDB Atlas (pymongo) + GridFS for file storage
+- **Auth:** Flask-Login + Argon2id password hashing + session-based with `login_id` invalidation
+- **AI:** OpenAI API (explanations, analogies, quiz feedback, chat)
+- **Rate Limiting:** Flask-Limiter (5/min on auth endpoints)
+- **Email:** Resend (password reset emails)
+- **CORS:** Flask-CORS with configurable origins
 
-## 🧰 Tech Stack
+## Setup
 
-- **Backend Framework**: Flask
-- **Database**: MongoDB + GridFS
-- **AI Integration**: OpenAI API
-- **Sessions**: Flask-Session
-- **CORS**: Flask-CORS
-- **Environment Management**: python-dotenv
+### 1. Clone and install
 
----
-
-## ⚙️ Setup Instructions
-
-### 1. Clone the Repository
+Requires [uv](https://docs.astral.sh/uv/) (Astral's Python package manager).
 
 ```bash
 git clone https://github.com/kevvinnnh/QuantumAiEdBackEnd.git
 cd QuantumAiEdBackEnd
+uv sync
 ```
 
-### 2. Create and Activate a Virtual Environment
-
-```bash
-python -m venv venv
-source venv/bin/activate       # On Windows: venv\Scripts\activate
-```
-
-### 3. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Configure Environment Variables
-
-Create a `.env` file from the example:
+### 2. Configure environment
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with the following keys:
+Edit `.env` with your credentials. Required variables:
 
-```
-FLASK_SECRET_KEY=your_flask_secret_key
-OPENAI_API_KEY=your_openai_api_key
-MONGODB_URI=your_mongodb_connection_uri
-SESSION_COOKIE_SECURE=False
-CORS_ORIGIN=http://localhost:5173
-```
+| Variable | Description |
+|----------|-------------|
+| `FLASK_SECRET_KEY` | Random secret for session signing |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `MONGODB_URI` | MongoDB Atlas connection string |
+| `ADMIN_EMAILS` | Comma-separated admin email addresses |
+| `RESEND_API_KEY` | Resend API key for password reset emails |
+| `FROM_EMAIL` | Sender address for outbound emails |
 
-### 5. Run the Server
+Optional variables (sensible defaults provided):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SESSION_LIFETIME_MINUTES` | `10080` (7 days) | Session expiry duration |
+| `CORS_ORIGINS` | localhost + Vercel | Comma-separated allowed origins |
+| `FRONTEND_URL` | `http://localhost:5173` | Used in password reset email links |
+| `FIRST_TIME_USER_EMAIL` | — | Forces this email through onboarding (dev/testing) |
+
+### 3. Run
 
 ```bash
-python app.py
+uv run python app.py
 ```
 
-Server will be live at:  
-📍 `http://localhost:5000`
+Server starts at `http://localhost:5000`. The frontend expects `VITE_BACKEND_URL=http://localhost:5000`.
 
----
+## Testing
 
-## 🔐 Admin Routes
+Tests run against a real MongoDB instance. Your `MONGODB_URI` **must** point to a database whose name contains `"test"` (e.g. `quantaied_test`). The test cleanup fixture will refuse to run against any other database to prevent accidental data loss.
 
-> Requires session with `admin=True`
+```bash
+# 1. Set MONGODB_URI to a test database in your .env
+#    MONGODB_URI=mongodb+srv://..../quantaied_test?retryWrites=true
 
-| Endpoint               | Description                        |
-|------------------------|------------------------------------|
-| `POST /admin/upload_lesson`  | Upload lesson metadata         |
-| `POST /admin/upload_reading` | Upload reading media to GridFS |
-| `POST /admin/upload_quiz`    | Upload quiz content            |
-
----
-
-## ✍️ Content Generation Routes
-
-| Endpoint                 | Description                                  |
-|--------------------------|----------------------------------------------|
-| `POST /explain_text`     | Simplify input and return bullet explanations |
-| `POST /generate_analogy` | Return analogy for abstract input             |
-| `POST /chat_about_text`  | Engage in dialog about a concept              |
-| `POST /chat_quiz_question` | Feedback on quiz answers with context      |
-
----
-
-## 👤 User & Profile Routes
-
-| Endpoint               | Description                            |
-|------------------------|----------------------------------------|
-| `POST /append_user_id` | Log in and start session               |
-| `GET /get_user_id`     | Return user ID from session            |
-| `POST /save_profile`   | Save user background info              |
-| `GET /get_user_profile`| Retrieve saved profile data            |
-| `POST /logout`         | End session and clear user context     |
-
----
-
-## 🧠 Quiz & Progress Routes
-
-| Endpoint                 | Description                             |
-|--------------------------|-----------------------------------------|
-| `POST /save_quiz_result` | Save quiz score and unlock new levels   |
-| `GET /get_user_progress` | Retrieve completed quizzes and progress |
-
----
-
-## 🩺 Health Check
-
-| Endpoint    | Description                      |
-|-------------|----------------------------------|
-| `GET /ping` | Check MongoDB and app connectivity |
-
----
-
-## 🌍 CORS & Session Configuration
-
-- Allowed frontend origins:
-  - `http://localhost:5173`
-  - `https://quantum-ai-ed-front-end-smoky.vercel.app`
-- Session cookies support cross-origin credentials
-- Admin access is restricted to predefined email IDs
-
----
-
-## 🧪 `.env.example`
-
-```env
-FLASK_SECRET_KEY=your_flask_secret_key
-OPENAI_API_KEY=your_openai_api_key
-MONGODB_URI=your_mongodb_connection_string
-SESSION_COOKIE_SECURE=False
-CORS_ORIGIN=http://localhost:5173
+# 2. Run tests
+uv run pytest tests/ -v
 ```
 
----
+## Development
 
-## 🐛 Troubleshooting
+This project uses [Astral](https://astral.sh/) tooling:
 
-- 🔌 **MongoDB connection**: Check URI format and database access.
-- 🔐 **OpenAI access**: Ensure API key is valid and usage quota is sufficient.
-- ⚠️ **CORS errors**: Confirm the frontend origin matches `CORS_ORIGIN`.
-- 🍪 **Sessions**: Use a secure and unique `FLASK_SECRET_KEY`; confirm cookies are enabled in the browser.
+- **uv** — package and project management (`uv sync`, `uv add`, `uv run`)
+- **ruff** — linting and formatting
+- **ty** — type checking
 
----
+```bash
+uv tool run ruff check .         # lint
+uv tool run ruff format .        # format
+uv tool run ty check .           # type check
+```
 
-## 📄 License
+## Project Structure
+
+```
+QuantumAiEdBackEnd/
+├── app.py                     # Flask app, CORS, Flask-Login, rate limiter, blueprint registration
+├── config.py                  # Centralized settings from .env
+├── pyproject.toml               # Dependencies, ruff/ty config
+├── uv.lock                      # Deterministic lockfile
+├── .env / .env.example
+├── routes/
+│   ├── __init__.py            # Shared admin_required decorator
+│   ├── auth.py                # /auth/* — signup, login, check, logout, password reset/change
+│   ├── users.py               # Google SSO login, profile CRUD, profile picture upload
+│   ├── progress.py            # Quiz results, lesson progress
+│   ├── content.py             # Admin content upload (lessons, readings, quizzes)
+│   ├── feedback.py            # User feedback submissions and admin review
+│   ├── ai.py                  # AI endpoints with hobby-based personalization
+│   └── admin_users.py         # Admin user management (list, disable/enable)
+├── services/
+│   ├── auth_service.py        # Argon2 hashing, login_id rotation, account lockout, password reset tokens
+│   └── email_service.py       # Resend integration for password reset emails
+├── database/
+│   └── mongo.py               # MongoClient, db, GridFS
+├── models/
+│   └── user.py                # Flask-Login UserMixin with derived auth methods
+└── tests/
+    ├── conftest.py            # Shared fixtures, test user cleanup
+    ├── test_auth_service.py   # Unit tests for auth business logic
+    ├── test_auth_routes.py    # Integration tests for /auth/* endpoints
+    └── test_user_routes.py    # Integration tests for user/profile/SSO endpoints
+```
+
+## API Reference
+
+### Auth (`/auth/*`) — rate limited to 5 requests/minute
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/auth/signup` | Create email/password account | No |
+| POST | `/auth/login` | Log in with email/password | No |
+| GET | `/auth/check` | Check if session is valid | No |
+| POST | `/auth/logout` | End session | No |
+| POST | `/auth/forgot-password` | Request password reset email | No |
+| POST | `/auth/reset-password` | Reset password with token | No |
+| POST | `/auth/change-password` | Change or set password | Yes |
+
+### Users and Profiles
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/append_user_id` | Google SSO login/signup with identity resolution | No |
+| GET | `/get_user_id` | Return current user's email | Yes |
+| POST | `/save_profile` | Save profile data (education, subjects, hobbies) | Yes |
+| POST | `/save_profile_picture` | Upload profile picture to GridFS | Yes |
+| GET | `/get_user_profile` | Retrieve profile data, auth methods, personalization settings | Yes |
+
+### AI (with hobby-based personalization)
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/explain_text` | Detailed explanation of a quantum concept | No |
+| POST | `/generate_analogy` | Everyday analogy for a quantum concept | No |
+| POST | `/chat_about_text` | Conversational follow-up on highlighted text | No |
+| POST | `/chat_quiz_question` | Contextual feedback on quiz answers | No |
+
+### Quiz and Progress
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/save_quiz_result` | Save quiz score and unlock next levels | Yes |
+| POST | `/save_first_lesson_view` | Mark first lesson as viewed | Yes |
+| GET | `/get_user_progress` | Retrieve completed quizzes, unlocked levels, user info | Yes |
+
+### Admin (requires admin session)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/admin/upload_lesson` | Upload lesson metadata |
+| POST | `/admin/upload_reading` | Upload reading media to GridFS |
+| POST | `/admin/upload_quiz` | Upload quiz content |
+| GET | `/admin/users` | List all users with metadata |
+| PATCH | `/admin/users/<email>/disable` | Toggle a user account's enabled/disabled state |
+| GET | `/admin/feedback` | List feedback submissions |
+| DELETE | `/admin/feedback/<id>` | Delete a feedback entry |
+
+### Utility
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/ping` | Health check (app + MongoDB connectivity) |
+| GET | `/file/<id>` | Serve files from GridFS (profile pictures, screenshots) |
+
+## License
 
 MIT
 
----
+## Citation
 
-## 📚 Citation
+If referencing Quantaid in academic work:
 
-If referencing QuantumAiEd in academic work, please cite:
-
-> Kevin Hernandez, Tirthak Patel.  
-> *Enhancing Early Quantum Computing Education with QuantumAiEd: Bridging the Educational Gap.*  
-> SIGCSETS 2025: Proceedings of the 56th ACM Technical Symposium on Computer Science Education V. 2, p. 1755.  
-> [https://doi.org/10.1145/3641555.3705028](https://doi.org/10.1145/3641555.3705028)  
+> Kevin Hernandez, Tirthak Patel.
+> *Enhancing Early Quantum Computing Education with QuantumAiEd: Bridging the Educational Gap.*
+> SIGCSETS 2025: Proceedings of the 56th ACM Technical Symposium on Computer Science Education V. 2, p. 1755.
+> [https://doi.org/10.1145/3641555.3705028](https://doi.org/10.1145/3641555.3705028)
 > Published: February 18, 2025. ACM.

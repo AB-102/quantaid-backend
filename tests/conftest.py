@@ -1,8 +1,9 @@
 """
 Shared test fixtures.
 
-Uses the real MongoDB Atlas database (same as dev) — these are integration tests.
-A dedicated test prefix is used for user emails to avoid polluting real data.
+Uses a dedicated MongoDB Atlas *test* database for integration tests. The database
+name must include 'test' to avoid accidentally running against dev or production
+data. A dedicated test prefix is also used for user emails as an extra safeguard.
 """
 import pytest
 import sys

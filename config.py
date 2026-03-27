@@ -3,7 +3,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY") or os.urandom(24)
+FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
+if not FLASK_SECRET_KEY:
+    raise RuntimeError("FLASK_SECRET_KEY environment variable must be set")
 MONGODB_URI = os.getenv("MONGODB_URI")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 FIRST_TIME_USER_EMAIL = os.getenv("FIRST_TIME_USER_EMAIL")

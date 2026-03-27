@@ -64,7 +64,13 @@ Server starts at `http://localhost:5000`. The frontend expects `VITE_BACKEND_URL
 
 ## Testing
 
+Tests run against a real MongoDB instance. Your `MONGODB_URI` **must** point to a database whose name contains `"test"` (e.g. `quantaied_test`). The test cleanup fixture will refuse to run against any other database to prevent accidental data loss.
+
 ```bash
+# 1. Set MONGODB_URI to a test database in your .env
+#    MONGODB_URI=mongodb+srv://..../quantaied_test?retryWrites=true
+
+# 2. Install pytest and run
 pip install pytest
 python -m pytest tests/ -v
 ```

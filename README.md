@@ -41,6 +41,7 @@ Edit `.env` with your credentials. Required variables:
 | `FLASK_SECRET_KEY` | Random secret for session signing |
 | `OPENAI_API_KEY` | OpenAI API key |
 | `MONGODB_URI` | MongoDB Atlas connection string |
+| `MONGODB_URI_TEST` | Separate MongoDB connection string for tests |
 | `ADMIN_EMAILS` | Comma-separated admin email addresses |
 | `RESEND_API_KEY` | Resend API key for password reset emails |
 | `FROM_EMAIL` | Sender address for outbound emails |
@@ -64,11 +65,11 @@ Server starts at `http://localhost:5000`. The frontend expects `VITE_BACKEND_URL
 
 ## Testing
 
-Tests run against a real MongoDB instance. Your `MONGODB_URI` **must** point to a database whose name contains `"test"` (e.g. `quantaied_test`). The test cleanup fixture will refuse to run against any other database to prevent accidental data loss.
+Tests run against a real MongoDB instance using the `MONGODB_URI_TEST` environment variable, which is completely separate from the production `MONGODB_URI`. This prevents any risk of accidentally modifying production data.
 
 ```bash
-# 1. Set MONGODB_URI to a test database in your .env
-#    MONGODB_URI=mongodb+srv://..../quantaied_test?retryWrites=true
+# 1. Set MONGODB_URI_TEST to a test database in your .env
+#    MONGODB_URI_TEST=mongodb+srv://..../quantaied_test?retryWrites=true
 
 # 2. Run tests
 uv run pytest tests/ -v

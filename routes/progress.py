@@ -1,12 +1,54 @@
+import json
 from flask import Blueprint, request, jsonify, session
 from flask_cors import cross_origin
 from flask_login import current_user, logout_user
 from pymongo.errors import PyMongoError
+from pymongo import UpdateOne
 from datetime import datetime, timezone
 from config import FIRST_TIME_USER_EMAIL
 from database.mongo import db
+from database.redis_client import redis_client
 
 progress_bp = Blueprint('progress', __name__)
+
+QUIZ_BUFFER_KEY = 'quiz_results_buffer'
+
+
+def flush_quiz_buffer():
+    """Flush buffered quiz results from Redis to MongoDB in bulk.
+
+    Called periodically by the background scheduler. Each entry is a JSON
+    object with user_id, courseId, score, passed, and timestamp.
+    """
+    if not redis_client:
+        return 0
+
+    entries = []
+    while True:
+        item = redis_client.lpop(QUIZ_BUFFER_KEY)
+        if not item:
+            break
+        entries.append(json.loads(str(item)))
+
+    if not entries:
+        return 0
+
+    operations = []
+    for entry in entries:
+        quiz_doc = {
+            'courseId': entry['courseId'],
+            'score': entry['score'],
+            'passed': entry['passed'],
+            'timestamp': datetime.fromisoformat(entry['timestamp']),
+        }
+        operations.append(UpdateOne(
+            {'user_id': entry['user_id']},
+            {'$push': {'completedQuizzes': quiz_doc}}
+        ))
+
+    result = db.users.bulk_write(operations, ordered=False)
+    print(f"DEBUG: Flushed {result.modified_count} buffered quiz results to MongoDB")
+    return result.modified_count
 
 
 @progress_bp.route('/save_quiz_result', methods=['POST'])
@@ -25,18 +67,32 @@ def save_quiz_result():
         timestamp = datetime.now(timezone.utc)
         if not isinstance(course_id, int) or not isinstance(score, (int, float)) or not isinstance(passed, bool):
              return jsonify({'error': 'Invalid data types for quiz data'}), 400
-        quiz_result_doc = {
-            "courseId": course_id, "score": score, "passed": passed, "timestamp": timestamp
-        }
-        update_operations = {
-            '$push': { 'completedQuizzes': quiz_result_doc },
-             '$set': { 'lastActivityAt': timestamp }
-        }
+
+        # Level unlock + lastActivityAt go to MongoDB immediately (user needs the response)
+        update_operations: dict = {'$set': {'lastActivityAt': timestamp}}
         MAX_COURSE_ID = 8
         if passed and course_id < MAX_COURSE_ID:
             next_level_id = course_id + 1
-            update_operations['$addToSet'] = { 'unlockedLevels': next_level_id }
-        result = db.users.update_one( {'user_id': user_id}, update_operations )
+            update_operations['$addToSet'] = {'unlockedLevels': next_level_id}
+
+        # Buffer the quiz log entry in Redis (flushed to MongoDB periodically)
+        if redis_client:
+            entry = json.dumps({
+                'user_id': user_id,
+                'courseId': course_id,
+                'score': score,
+                'passed': passed,
+                'timestamp': timestamp.isoformat(),
+            })
+            redis_client.rpush(QUIZ_BUFFER_KEY, entry)
+        else:
+            # No Redis — write quiz result directly to MongoDB
+            quiz_result_doc = {
+                "courseId": course_id, "score": score, "passed": passed, "timestamp": timestamp
+            }
+            update_operations['$push'] = {'completedQuizzes': quiz_result_doc}
+
+        result = db.users.update_one({'user_id': user_id}, update_operations)
         if result.matched_count == 0:
             return jsonify({'error': 'User not found during quiz save'}), 404
         print(f"DEBUG: Quiz result saved for user {user_id}, course {course_id}. Passed: {passed}")

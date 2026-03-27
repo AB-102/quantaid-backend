@@ -5,9 +5,11 @@ from flask_cors import CORS
 from flask_login import LoginManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_session import Session
 from bson import ObjectId
-from config import FLASK_SECRET_KEY, CORS_ORIGINS, SESSION_LIFETIME_MINUTES
+from config import FLASK_SECRET_KEY, CORS_ORIGINS, SESSION_LIFETIME_MINUTES, REDIS_URL
 from database.mongo import mongo_client, db, fs
+from database.redis_client import redis_client
 from models.user import User
 import logging
 
@@ -33,6 +35,19 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'None' if is_production else 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = is_production
 app.config['SESSION_COOKIE_HTTPONLY'] = True        # JS can't read the cookie
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=SESSION_LIFETIME_MINUTES)
+
+# --- Server-side sessions (Redis when available, default filesystem otherwise) ---
+if redis_client:
+    app.config['SESSION_TYPE'] = 'redis'
+    app.config['SESSION_REDIS'] = redis_client
+    logging.info("Using Redis-backed server-side sessions")
+else:
+    app.config['SESSION_TYPE'] = 'filesystem'
+    logging.info("Redis unavailable — using filesystem sessions (local dev)")
+app.config['SESSION_PERMANENT'] = True
+app.config['SESSION_USE_SIGNER'] = True  # sign the session ID cookie
+app.config['SESSION_KEY_PREFIX'] = 'quantaied:'
+Session(app)
 
 # --- CORS ---
 CORS(
@@ -83,7 +98,7 @@ limiter = Limiter(
     get_remote_address,
     app=app,
     default_limits=[],  # No global limit — apply per-route
-    storage_uri="memory://",
+    storage_uri=REDIS_URL if REDIS_URL else "memory://",
 )
 
 # Apply stricter limits to auth endpoints
@@ -97,6 +112,16 @@ app.register_blueprint(users_bp)
 app.register_blueprint(progress_bp)
 app.register_blueprint(feedback_bp)
 app.register_blueprint(admin_users_bp)
+
+
+# --- Quiz buffer flush (Redis → MongoDB every 30s) ---
+if redis_client:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from routes.progress import flush_quiz_buffer
+    scheduler = BackgroundScheduler(daemon=True)
+    scheduler.add_job(flush_quiz_buffer, 'interval', seconds=30, id='flush_quiz_buffer')
+    scheduler.start()
+    logging.info("Quiz buffer flush scheduler started (every 30s)")
 
 
 # --- Shared routes ---
@@ -135,4 +160,10 @@ def ping():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    try:
+        app.run(host='0.0.0.0', port=port, debug=False)
+    finally:
+        # Flush any remaining buffered quiz results on shutdown
+        if redis_client:
+            from routes.progress import flush_quiz_buffer
+            flush_quiz_buffer()

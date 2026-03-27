@@ -1,37 +1,43 @@
 """Integration tests for user routes (profile, Google SSO)."""
 import pytest
+from unittest.mock import patch, MagicMock
 from tests.conftest import TEST_USER_PREFIX
 from services.auth_service import generate_login_id
+
+
+def _mock_google_userinfo(email, name='Google User', picture='https://example.com/pic.jpg', sub='google-sub-default'):
+    """Return a context manager that mocks the Google userinfo endpoint."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        'email': email,
+        'name': name,
+        'picture': picture,
+        'sub': sub,
+    }
+    return patch('routes.users.http_requests.get', return_value=mock_resp)
 
 
 class TestGoogleSSO:
     def test_new_google_user(self, client):
         email = f'{TEST_USER_PREFIX}google@test.com'
-        res = client.post('/append_user_id', json={
-            'user_id': email,
-            'name': 'Google User',
-            'picture': 'https://example.com/pic.jpg',
-            'google_sub': 'google-sub-new-123',
-        })
+        with _mock_google_userinfo(email, sub='google-sub-new-123'):
+            res = client.post('/append_user_id', json={
+                'access_token': 'fake-token',
+            })
         assert res.status_code == 201
         data = res.get_json()
         assert data['redirect_to'] == 'profile-creation'
 
     def test_returning_google_user(self, client):
         email = f'{TEST_USER_PREFIX}returning@test.com'
-        # First login
-        client.post('/append_user_id', json={
-            'user_id': email,
-            'name': 'Returning User',
-            'google_sub': 'google-sub-returning',
-        })
+        with _mock_google_userinfo(email, name='Returning User', sub='google-sub-returning'):
+            # First login
+            client.post('/append_user_id', json={'access_token': 'fake-token'})
         client.post('/auth/logout')
-        # Second login
-        res = client.post('/append_user_id', json={
-            'user_id': email,
-            'name': 'Returning User',
-            'google_sub': 'google-sub-returning',
-        })
+        with _mock_google_userinfo(email, name='Returning User', sub='google-sub-returning'):
+            # Second login
+            res = client.post('/append_user_id', json={'access_token': 'fake-token'})
         assert res.status_code == 200
         assert res.get_json()['redirect_to'] == 'profile-creation'
 
@@ -49,35 +55,29 @@ class TestGoogleSSO:
         assert pre_check is not None, f"User {email} not found after signup"
         client.post('/auth/logout')
         # Now log in via Google — should find existing user by email
-        res = client.post('/append_user_id', json={
-            'user_id': email,
-            'name': 'Linked User',
-            'google_sub': 'google-sub-linked',
-        })
+        with _mock_google_userinfo(email, name='Linked User', sub='google-sub-linked'):
+            res = client.post('/append_user_id', json={'access_token': 'fake-token'})
         assert res.status_code == 200, f"Expected 200 but got {res.status_code}: {res.get_json()}"
         # Verify the google_sub was linked
         user = db.users.find_one({'user_id': email})
+        assert user is not None, f"User {email} not found after Google login"
         assert user['google_sub'] == 'google-sub-linked'
 
-    def test_missing_email(self, client):
+    def test_missing_access_token(self, client):
         res = client.post('/append_user_id', json={
-            'name': 'No Email',
+            'name': 'No Token',
         })
         assert res.status_code == 400
 
     def test_disabled_user_blocked(self, client):
         email = f'{TEST_USER_PREFIX}disabled@test.com'
-        client.post('/append_user_id', json={
-            'user_id': email,
-            'google_sub': 'google-sub-disabled',
-        })
+        with _mock_google_userinfo(email, sub='google-sub-disabled'):
+            client.post('/append_user_id', json={'access_token': 'fake-token'})
         from database.mongo import db
         db.users.update_one({'user_id': email}, {'$set': {'disabled': True}})
         client.post('/auth/logout')
-        res = client.post('/append_user_id', json={
-            'user_id': email,
-            'google_sub': 'google-sub-disabled',
-        })
+        with _mock_google_userinfo(email, sub='google-sub-disabled'):
+            res = client.post('/append_user_id', json={'access_token': 'fake-token'})
         assert res.status_code == 403
 
 

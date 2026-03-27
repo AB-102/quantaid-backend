@@ -69,7 +69,18 @@ def login():
 
     user, error = authenticate_user(email, password)
     if not user:
-        return jsonify({'error': error}), 401
+        # Map specific authentication failures to appropriate HTTP status codes.
+        # Default to 401 for generic authentication failures (e.g., bad credentials).
+        status_code = 401
+        if isinstance(error, str):
+            lowered = error.lower()
+            if 'disabled' in lowered:
+                # Account exists but is disabled -> forbidden.
+                status_code = 403
+            elif 'lock' in lowered:
+                # Account is locked / lockout condition -> locked.
+                status_code = 423
+        return jsonify({'error': error}), status_code
 
     # Refresh admin status from ADMIN_EMAILS (source of truth)
     is_admin = email in ADMIN_EMAILS

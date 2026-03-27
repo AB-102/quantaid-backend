@@ -5,12 +5,13 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
+ENV UV_COMPILE_BYTECODE=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Install dependencies first (this layer is cached unless pyproject.toml/uv.lock change)
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-editable
+RUN uv sync --frozen --no-dev --no-editable --no-install-project
 
 # Run as non-root user
 RUN useradd -m appuser

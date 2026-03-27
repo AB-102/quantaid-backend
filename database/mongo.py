@@ -1,4 +1,3 @@
-import os
 from pymongo.mongo_client import MongoClient
 from gridfs import GridFS
 from config import MONGODB_URI

@@ -20,12 +20,12 @@ Backend API for Quantaid, an AI-driven quantum computing education platform that
 
 ### 1. Clone and install
 
+Requires [uv](https://docs.astral.sh/uv/) (Astral's Python package manager).
+
 ```bash
 git clone https://github.com/kevvinnnh/QuantumAiEdBackEnd.git
 cd QuantumAiEdBackEnd
-python -m venv venv
-source venv/bin/activate       # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 2. Configure environment
@@ -57,7 +57,7 @@ Optional variables (sensible defaults provided):
 ### 3. Run
 
 ```bash
-python app.py
+uv run python app.py
 ```
 
 Server starts at `http://localhost:5000`. The frontend expects `VITE_BACKEND_URL=http://localhost:5000`.
@@ -70,9 +70,22 @@ Tests run against a real MongoDB instance. Your `MONGODB_URI` **must** point to 
 # 1. Set MONGODB_URI to a test database in your .env
 #    MONGODB_URI=mongodb+srv://..../quantaied_test?retryWrites=true
 
-# 2. Install pytest and run
-pip install pytest
-python -m pytest tests/ -v
+# 2. Run tests
+uv run pytest tests/ -v
+```
+
+## Development
+
+This project uses [Astral](https://astral.sh/) tooling:
+
+- **uv** — package and project management (`uv sync`, `uv add`, `uv run`)
+- **ruff** — linting and formatting
+- **ty** — type checking
+
+```bash
+uv tool run ruff check .         # lint
+uv tool run ruff format .        # format
+uv tool run ty check .           # type check
 ```
 
 ## Project Structure
@@ -81,7 +94,8 @@ python -m pytest tests/ -v
 QuantumAiEdBackEnd/
 ├── app.py                     # Flask app, CORS, Flask-Login, rate limiter, blueprint registration
 ├── config.py                  # Centralized settings from .env
-├── requirements.txt
+├── pyproject.toml               # Dependencies, ruff/ty config
+├── uv.lock                      # Deterministic lockfile
 ├── .env / .env.example
 ├── routes/
 │   ├── __init__.py            # Shared admin_required decorator

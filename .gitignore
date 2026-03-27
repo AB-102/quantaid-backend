@@ -62,6 +62,9 @@ flask_session/
 # dotenv environment variables file
 .env
 
+# Tooling caches
+.ruff_cache/
+
 # IDE and editor folders
 .vscode/
 .idea/

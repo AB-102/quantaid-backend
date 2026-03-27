@@ -1,5 +1,7 @@
 import logging
+
 import redis as redis_lib
+
 from config import REDIS_URL
 
 logger = logging.getLogger(__name__)

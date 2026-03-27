@@ -1,3 +1,5 @@
+from datetime import UTC
+
 from flask_login import UserMixin
 
 
@@ -18,16 +20,16 @@ class User(UserMixin):
 
     def __init__(self, user_doc: dict):
         self._doc = user_doc
-        self.email = user_doc.get('user_id', '')          # user_id field is email
-        self.name = user_doc.get('name', '')
-        self.picture = user_doc.get('picture', '')
-        self.is_admin = user_doc.get('is_admin', False)
-        self.login_id = user_doc.get('login_id', '')
-        self.password_hash = user_doc.get('password_hash') or ''
-        self.google_sub = user_doc.get('google_sub') or ''
-        self.profile_complete = user_doc.get('profile_complete', False)
-        self.failed_login_attempts = user_doc.get('failed_login_attempts', 0)
-        self.locked_until = user_doc.get('locked_until', None)
+        self.email = user_doc.get("user_id", "")  # user_id field is email
+        self.name = user_doc.get("name", "")
+        self.picture = user_doc.get("picture", "")
+        self.is_admin = user_doc.get("is_admin", False)
+        self.login_id = user_doc.get("login_id", "")
+        self.password_hash = user_doc.get("password_hash") or ""
+        self.google_sub = user_doc.get("google_sub") or ""
+        self.profile_complete = user_doc.get("profile_complete", False)
+        self.failed_login_attempts = user_doc.get("failed_login_attempts", 0)
+        self.locked_until = user_doc.get("locked_until", None)
 
     # Flask-Login requires get_id() — we return email (same as user_id in DB)
     def get_id(self):
@@ -46,9 +48,9 @@ class User(UserMixin):
         """Derive available auth methods from populated fields."""
         methods = []
         if self.has_google:
-            methods.append('google')
+            methods.append("google")
         if self.has_password:
-            methods.append('email')
+            methods.append("email")
         return methods
 
     @property
@@ -56,9 +58,10 @@ class User(UserMixin):
         """Check if account is currently locked out."""
         if self.locked_until is None:
             return False
-        from datetime import datetime, timezone
+        from datetime import datetime
+
         locked = self.locked_until
         # MongoDB may return naive datetimes (UTC without tzinfo)
         if locked.tzinfo is None:
-            locked = locked.replace(tzinfo=timezone.utc)
-        return datetime.now(timezone.utc) < locked
+            locked = locked.replace(tzinfo=UTC)
+        return datetime.now(UTC) < locked

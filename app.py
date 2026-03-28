@@ -123,6 +123,14 @@ app.register_blueprint(progress_bp)
 app.register_blueprint(feedback_bp)
 app.register_blueprint(admin_users_bp)
 
+# --- Auto-seed MongoDB on startup ---
+try:
+    from database.seeding import seed_if_empty
+
+    seed_if_empty()
+except Exception:
+    logging.exception("Auto-seed failed — database may be unavailable at startup")
+
 
 # --- Quiz buffer flush (Redis → MongoDB every 30s) ---
 if redis_client:

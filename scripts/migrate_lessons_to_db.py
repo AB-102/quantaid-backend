@@ -8,13 +8,14 @@ Usage:
 This script is idempotent — it skips courseIds that already exist in lessons_v2.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from datetime import datetime, timezone
-from database.mongo import db
+from datetime import UTC, datetime
 
+from database.mongo import db
 
 # --- Hardcoded lesson data (mirrored from LessonContents.ts) ---
 
@@ -282,12 +283,12 @@ def paragraphs_to_blocks(paragraphs: list) -> list:
 
 def get_lesson_documents() -> list:
     """Return all lesson documents ready for insertion (no DB side effects)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     docs = []
     for course_id in sorted(LESSONS.keys()):
         lesson_data = LESSONS[course_id]
         quiz_data = QUIZZES.get(course_id, [])
-        blocks = paragraphs_to_blocks(lesson_data['paragraphs'])
+        blocks = paragraphs_to_blocks(lesson_data['paragraphs'])  # ty: ignore[invalid-argument-type]
         docs.append({
             'courseId': course_id,
             'title': lesson_data['title'],
@@ -301,7 +302,7 @@ def get_lesson_documents() -> list:
 
 
 def migrate():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     inserted = 0
     skipped = 0
 
@@ -315,7 +316,7 @@ def migrate():
         lesson_data = LESSONS[course_id]
         quiz_data = QUIZZES.get(course_id, [])
 
-        blocks = paragraphs_to_blocks(lesson_data['paragraphs'])
+        blocks = paragraphs_to_blocks(lesson_data['paragraphs'])  # ty: ignore[invalid-argument-type]
 
         doc = {
             'courseId': course_id,

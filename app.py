@@ -159,7 +159,7 @@ def serve_file(file_id):
             return jsonify({"error": "File not found"}), 404
         return Response(
             file_obj.read(),
-            mimetype=file_obj["contentType"] or "application/octet-stream",
+            mimetype=file_obj["contentType"] or "application/octet-stream",  # ty: ignore[not-subscriptable]
             headers={"Content-Disposition": f'inline; filename="{file_obj.filename}"'},
         )
     except Exception as e:

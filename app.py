@@ -10,11 +10,11 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
+from flask_session import Session  # type: ignore[attr-defined]
 
 from config import CORS_ORIGINS, FLASK_SECRET_KEY, REDIS_URL, SESSION_LIFETIME_MINUTES
 from database.mongo import db, fs, mongo_client
 from database.redis_client import redis_client
-from flask_session import Session  # type: ignore[attr-defined]
 from models.user import User
 from routes.admin_users import admin_users_bp
 from routes.ai import ai_bp

@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen --dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen --dev
+      - run: uv run ty check .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen --dev
+      - name: Run tests
+        env:
+          FLASK_SECRET_KEY: test-secret-key-for-ci
+          MONGODB_URI: ${{ secrets.MONGODB_URI_TEST }}
+          MONGODB_URI_TEST: ${{ secrets.MONGODB_URI_TEST }}
+          OPENAI_API_KEY: sk-fake-key-for-ci
+          ADMIN_EMAILS: testadmin@test.com
+          RESEND_API_KEY: re_fake_key
+          FROM_EMAIL: test@test.com
+        run: uv run pytest tests/ -v
+
+  deploy:
+    needs: [lint, typecheck, test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"

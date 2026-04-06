@@ -30,3 +30,8 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 # Redis: set REDIS_URL to connect. Leave unset for local dev (falls back to in-memory).
 REDIS_URL = os.getenv("REDIS_URL", "")
+
+# Rice University OIDC: set these to enable Rice SSO. Leave unset to disable.
+RICE_OIDC_CLIENT_ID = os.getenv("RICE_OIDC_CLIENT_ID", "")
+RICE_OIDC_CLIENT_SECRET = os.getenv("RICE_OIDC_CLIENT_SECRET", "")
+RICE_OIDC_REDIRECT_URI = os.getenv("RICE_OIDC_REDIRECT_URI", "")

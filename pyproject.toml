@@ -40,6 +40,8 @@ known-third-party = ["flask_session"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
 "routes/content.py" = ["E501"]  # long description strings in course data
+"data/default_dashboard_config.py" = ["E501"]  # long description strings in course data
+"scripts/migrate_lessons_to_db.py" = ["E501"]  # long strings in lesson/quiz seed data
 
 [tool.ty.environment]
 python-version = "3.11"

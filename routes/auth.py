@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request, session
 from flask_cors import cross_origin
 from flask_login import current_user, login_user, logout_user
 
-from config import ADMIN_EMAILS
+from config import ADMIN_EMAILS, ENABLE_EMAIL_PASSWORD_AUTH, ENABLE_GOOGLE_SSO, RICE_OIDC_CLIENT_ID
 from services.auth_service import (
     authenticate_user,
     create_email_user,
@@ -25,6 +25,8 @@ EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 @auth_bp.route("/signup", methods=["POST"])
 @cross_origin(supports_credentials=True)
 def signup():
+    if not ENABLE_EMAIL_PASSWORD_AUTH:
+        return jsonify({"error": "Email/password authentication is not enabled."}), 404
     data = request.json or {}
     email = (data.get("email") or "").strip().lower()
     password = data.get("password", "")
@@ -65,6 +67,8 @@ def signup():
 @auth_bp.route("/login", methods=["POST"])
 @cross_origin(supports_credentials=True)
 def login():
+    if not ENABLE_EMAIL_PASSWORD_AUTH:
+        return jsonify({"error": "Email/password authentication is not enabled."}), 404
     data = request.json or {}
     email = (data.get("email") or "").strip().lower()
     password = data.get("password", "")
@@ -113,15 +117,21 @@ def login():
 @cross_origin(supports_credentials=True)
 def check():
     """Check if the current session is valid. Called by frontend on mount."""
+    auth_methods = {
+        "rice_sso_enabled": bool(RICE_OIDC_CLIENT_ID),
+        "google_sso_enabled": ENABLE_GOOGLE_SSO,
+        "email_password_enabled": ENABLE_EMAIL_PASSWORD_AUTH,
+    }
     if current_user.is_authenticated:
         return jsonify(
             {
                 "authenticated": True,
                 "email": current_user.email,
                 "is_admin": current_user.is_admin,
+                **auth_methods,
             }
         ), 200
-    return jsonify({"authenticated": False}), 200
+    return jsonify({"authenticated": False, **auth_methods}), 200
 
 
 @auth_bp.route("/forgot-password", methods=["POST"])
@@ -131,6 +141,8 @@ def forgot_password():
     Request a password reset email.
     Always returns success to prevent email enumeration.
     """
+    if not ENABLE_EMAIL_PASSWORD_AUTH:
+        return jsonify({"error": "Email/password authentication is not enabled."}), 404
     data = request.json or {}
     email = (data.get("email") or "").strip().lower()
 
@@ -146,6 +158,8 @@ def forgot_password():
 @auth_bp.route("/reset-password", methods=["POST"])
 @cross_origin(supports_credentials=True)
 def reset_password():
+    if not ENABLE_EMAIL_PASSWORD_AUTH:
+        return jsonify({"error": "Email/password authentication is not enabled."}), 404
     data = request.json or {}
     token = data.get("token", "")
     new_password = data.get("password", "")

@@ -12,9 +12,10 @@ from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from flask_session import Session  # type: ignore[attr-defined]
 
-from config import CORS_ORIGINS, FLASK_SECRET_KEY, REDIS_URL, SESSION_LIFETIME_MINUTES
+from config import CORS_ORIGINS, FLASK_SECRET_KEY, REDIS_URL, RICE_OIDC_CLIENT_ID, SESSION_LIFETIME_MINUTES
 from database.mongo import db, fs, mongo_client
 from database.redis_client import redis_client
+from database.seeding import seed_if_empty
 from models.user import User
 from routes.admin_users import admin_users_bp
 from routes.ai import ai_bp
@@ -123,10 +124,15 @@ app.register_blueprint(progress_bp)
 app.register_blueprint(feedback_bp)
 app.register_blueprint(admin_users_bp)
 
+# Rice SSO (OIDC) — only registered when credentials are configured
+if RICE_OIDC_CLIENT_ID:
+    from routes.rice_auth import rice_auth_bp
+
+    app.register_blueprint(rice_auth_bp)
+
+
 # --- Auto-seed MongoDB on startup ---
 try:
-    from database.seeding import seed_if_empty
-
     seed_if_empty()
 except Exception:
     logging.exception("Auto-seed failed — database may be unavailable at startup")

@@ -9,8 +9,9 @@ class User(UserMixin):
 
     Auth methods are derived from which fields are populated:
       - google_sub set   → can use Google SSO
+      - rice_sub set     → can use Rice University SSO
       - password_hash set → can use email/password
-      - both set         → linked account (both methods work)
+      - multiple set     → linked account (all linked methods work)
 
     The `login_id` field is a random token stored in both the DB and the session
     cookie. On every request, Flask-Login's user_loader checks that they match.
@@ -27,6 +28,7 @@ class User(UserMixin):
         self.login_id = user_doc.get("login_id", "")
         self.password_hash = user_doc.get("password_hash") or ""
         self.google_sub = user_doc.get("google_sub") or ""
+        self.rice_sub = user_doc.get("rice_sub") or ""
         self.profile_complete = user_doc.get("profile_complete", False)
         self.failed_login_attempts = user_doc.get("failed_login_attempts", 0)
         self.locked_until = user_doc.get("locked_until", None)
@@ -40,6 +42,10 @@ class User(UserMixin):
         return bool(self.google_sub)
 
     @property
+    def has_rice(self) -> bool:
+        return bool(self.rice_sub)
+
+    @property
     def has_password(self) -> bool:
         return bool(self.password_hash)
 
@@ -49,6 +55,8 @@ class User(UserMixin):
         methods = []
         if self.has_google:
             methods.append("google")
+        if self.has_rice:
+            methods.append("rice")
         if self.has_password:
             methods.append("email")
         return methods

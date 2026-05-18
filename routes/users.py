@@ -7,7 +7,7 @@ from flask_cors import cross_origin
 from flask_login import current_user, login_user, logout_user
 from pymongo.errors import PyMongoError
 
-from config import ADMIN_EMAILS, FIRST_TIME_USER_EMAIL
+from config import ADMIN_EMAILS, ENABLE_GOOGLE_SSO, FIRST_TIME_USER_EMAIL
 from database.mongo import db, fs
 from models.user import User
 from services.auth_service import generate_login_id
@@ -31,6 +31,8 @@ def append_user_id():
     The frontend sends the Google access_token; this endpoint verifies it
     server-side by calling Google's userinfo API to extract email and sub.
     """
+    if not ENABLE_GOOGLE_SSO:
+        return jsonify({"error": "Google SSO is not enabled."}), 404
     try:
         data = request.json or {}
 

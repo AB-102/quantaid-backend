@@ -35,3 +35,7 @@ REDIS_URL = os.getenv("REDIS_URL", "")
 RICE_OIDC_CLIENT_ID = os.getenv("RICE_OIDC_CLIENT_ID", "")
 RICE_OIDC_CLIENT_SECRET = os.getenv("RICE_OIDC_CLIENT_SECRET", "")
 RICE_OIDC_REDIRECT_URI = os.getenv("RICE_OIDC_REDIRECT_URI", "")
+
+# Auth method feature flags: set to "false" to disable. Defaults to enabled.
+ENABLE_GOOGLE_SSO = os.getenv("ENABLE_GOOGLE_SSO", "true").lower() == "true"
+ENABLE_EMAIL_PASSWORD_AUTH = os.getenv("ENABLE_EMAIL_PASSWORD_AUTH", "true").lower() == "true"

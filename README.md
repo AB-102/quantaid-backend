@@ -23,8 +23,8 @@ Backend API for Quantaid, an AI-driven quantum computing education platform that
 Requires [uv](https://docs.astral.sh/uv/) (Astral's Python package manager).
 
 ```bash
-git clone https://github.com/kevvinnnh/QuantumAiEdBackEnd.git
-cd QuantumAiEdBackEnd
+git clone https://github.com/AB-102/quantaid-backend.git
+cd quantaid-backend
 uv sync
 ```
 
@@ -92,7 +92,7 @@ uv tool run ty check .           # type check
 ## Project Structure
 
 ```
-QuantumAiEdBackEnd/
+quantaid-backend/
 ├── app.py                     # Flask app, CORS, Flask-Login, rate limiter, blueprint registration
 ├── config.py                  # Centralized settings from .env
 ├── pyproject.toml               # Dependencies, ruff/ty config

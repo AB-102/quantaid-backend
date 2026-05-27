@@ -25,9 +25,6 @@ _default_origins = [
 _env_origins = os.getenv("CORS_ORIGINS", "")
 CORS_ORIGINS = [o.strip() for o in _env_origins.split(",") if o.strip()] if _env_origins else _default_origins
 
-# Frontend URL for password reset links
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
-
 # Redis: set REDIS_URL to connect. Leave unset for local dev (falls back to in-memory).
 REDIS_URL = os.getenv("REDIS_URL", "")
 

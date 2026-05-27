@@ -75,5 +75,6 @@ flask_session/
 # Log files
 *.log
 credentials.json
-credentials.json
 
+# Architecture docs snapshot (temporary)
+docs/design/current/

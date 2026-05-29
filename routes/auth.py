@@ -2,6 +2,8 @@ from flask import Blueprint, jsonify, session
 from flask_cors import cross_origin
 from flask_login import current_user, logout_user
 
+from services.auth_service import rotate_login_id
+
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 
@@ -24,6 +26,8 @@ def check():
 @cross_origin(supports_credentials=True)
 def auth_logout():
     """Log out the current user (Flask-Login session)."""
+    if current_user.is_authenticated:
+        rotate_login_id(current_user.email)
     logout_user()
     session.clear()
     return jsonify({"message": "Logged out successfully."}), 200

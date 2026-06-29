@@ -9,8 +9,8 @@ from pymongo.errors import PyMongoError
 
 from config import ADMIN_EMAILS, FIRST_TIME_USER_EMAIL
 from database.mongo import db, fs
-from models.user import User
-from services.auth_service import generate_login_id
+from flask_app.models.user import User
+from flask_app.services.auth_service import generate_login_id
 
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
@@ -30,6 +30,9 @@ def append_user_id():
 
     The frontend sends the Google access_token; this endpoint verifies it
     server-side by calling Google's userinfo API to extract email and sub.
+
+    NOTE: This route is dead code — FastAPI's POST /append_user_id takes priority
+    via WSGIMiddleware ordering. Kept until routes/users.py is fully migrated to FastAPI.
     """
     try:
         data = request.json or {}

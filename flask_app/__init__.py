@@ -3,28 +3,25 @@ import logging
 import os
 from datetime import timedelta
 
+import jwt as pyjwt
 from bson import ObjectId
 from flask import Flask, Response, jsonify, session
-from flask import request as flask_request
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from flask_session import Session  # type: ignore[attr-defined]
 
-from config import CORS_ORIGINS, FLASK_SECRET_KEY, REDIS_URL, SESSION_LIFETIME_MINUTES
+from config import CORS_ORIGINS, FLASK_SECRET_KEY, JWT_SECRET_KEY, REDIS_URL, SESSION_LIFETIME_MINUTES
 from database.mongo import db, fs, mongo_client
 from database.redis_client import redis_client
-from models.user import User
-from routes.admin_users import admin_users_bp
-from routes.ai import ai_bp
-
-# --- Import Blueprints ---
-from routes.auth import auth_bp
-from routes.content import content_bp
-from routes.feedback import feedback_bp
-from routes.progress import progress_bp
-from routes.users import users_bp
+from flask_app.models.user import User
+from flask_app.routes.admin_users import admin_users_bp
+from flask_app.routes.ai import ai_bp
+from flask_app.routes.content import content_bp
+from flask_app.routes.feedback import feedback_bp
+from flask_app.routes.progress import progress_bp
+from flask_app.routes.users import users_bp
 
 app = Flask(__name__)
 
@@ -86,6 +83,22 @@ def load_user(email: str) -> User | None:
     return user
 
 
+@login_manager.request_loader
+def load_user_from_jwt(request) -> User | None:
+    """Bridge: reads quantaid_token JWT cookie set by FastAPI for remaining Flask routes."""
+    token = request.cookies.get("quantaid_token")
+    if not token:
+        return None
+    try:
+        payload = pyjwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
+        user_doc = db.users.find_one({"user_id": payload["sub"]})
+        if not user_doc or user_doc.get("disabled", False):
+            return None
+        return User(user_doc)
+    except pyjwt.PyJWTError:
+        return None
+
+
 @login_manager.unauthorized_handler
 def unauthorized():
     return jsonify({"error": "Authentication required."}), 401
@@ -105,17 +118,7 @@ limiter = Limiter(
     storage_uri=REDIS_URL if redis_client else "memory://",
 )
 
-# Apply stricter limits to auth endpoints (exempt /auth/check — called frequently by SPA)
-limiter.limit("5 per minute")(auth_bp)
-
-
-@limiter.request_filter
-def _exempt_auth_check():
-    return flask_request.endpoint == "auth.check"
-
-
 # --- Register Blueprints ---
-app.register_blueprint(auth_bp)
 app.register_blueprint(content_bp)
 app.register_blueprint(ai_bp)
 app.register_blueprint(users_bp)
@@ -136,7 +139,7 @@ except Exception:
 if redis_client:
     from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore[import-untyped]
 
-    from routes.progress import flush_quiz_buffer
+    from flask_app.routes.progress import flush_quiz_buffer
 
     scheduler = BackgroundScheduler(daemon=True)
     scheduler.add_job(flush_quiz_buffer, "interval", seconds=30, id="flush_quiz_buffer")
@@ -176,8 +179,3 @@ def ping():
         logging.exception("MongoDB ping failed")
         db_status = "error"
     return jsonify({"status": "pong", "database": db_status}), 200
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)

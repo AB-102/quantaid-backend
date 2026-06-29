@@ -5,7 +5,7 @@ from flask_cors import cross_origin
 
 from data.default_dashboard_config import DEFAULT_DASHBOARD_CONFIG
 from database.mongo import db, fs
-from routes import admin_required
+from flask_app.routes import admin_required
 
 content_bp = Blueprint("content", __name__)
 

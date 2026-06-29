@@ -52,8 +52,8 @@ TEST_USER_PREFIX = "_test_"
 @pytest.fixture(scope="session")
 def app():
     """Create a Flask test app with all blueprints registered."""
-    from app import app as flask_app
-    from app import limiter
+    from flask_app import app as flask_app
+    from flask_app import limiter
 
     flask_app.config["TESTING"] = True
     flask_app.config["SESSION_COOKIE_SECURE"] = False  # Allow non-HTTPS in tests

@@ -9,7 +9,7 @@ from flask_login import current_user
 from pymongo.errors import PyMongoError
 
 from database.mongo import db, fs
-from routes import admin_required
+from flask_app.routes import admin_required
 
 feedback_bp = Blueprint("feedback", __name__)
 

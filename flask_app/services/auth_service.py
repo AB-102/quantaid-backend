@@ -1,7 +1,7 @@
 import secrets
 
 from database.mongo import db
-from models.user import User
+from flask_app.models.user import User
 
 
 def generate_login_id() -> str:
@@ -18,10 +18,7 @@ def get_user_by_email(email: str) -> User | None:
 
 
 def rotate_login_id(email: str) -> str:
-    """
-    Generate a new login_id and save it. Used on logout to invalidate all other sessions.
-    Returns the new login_id.
-    """
+    """Generate a new login_id and save it. Used on logout to invalidate all other sessions."""
     new_login_id = generate_login_id()
     db.users.update_one({"user_id": email.lower()}, {"$set": {"login_id": new_login_id}})
     return new_login_id

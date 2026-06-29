@@ -20,8 +20,6 @@ USER appuser
 # Copy app code
 COPY --chown=appuser:appuser . .
 
-# Flask runs on this port
-EXPOSE 5000
+EXPOSE 8000
 
-# Run application via uv so the venv is activated
-CMD ["uv", "run", "gunicorn", "app:app", "--workers", "4", "--bind", "0.0.0.0:5000", "--timeout", "120"]
+CMD ["uv", "run", "gunicorn", "main:app", "-k", "uvicorn.workers.UvicornWorker", "--workers", "4", "--bind", "0.0.0.0:8000", "--timeout", "120"]

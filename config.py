@@ -28,6 +28,12 @@ CORS_ORIGINS = [o.strip() for o in _env_origins.split(",") if o.strip()] if _env
 # Redis: set REDIS_URL to connect. Leave unset for local dev (falls back to in-memory).
 REDIS_URL = os.getenv("REDIS_URL", "")
 
+# JWT authentication (FastAPI routes)
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not JWT_SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY environment variable must be set")
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "10080"))
+
 # Rice University OIDC: set these to enable Rice SSO. Leave unset to disable.
 RICE_OIDC_CLIENT_ID = os.getenv("RICE_OIDC_CLIENT_ID", "")
 RICE_OIDC_CLIENT_SECRET = os.getenv("RICE_OIDC_CLIENT_SECRET", "")

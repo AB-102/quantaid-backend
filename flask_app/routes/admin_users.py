@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 from flask_cors import cross_origin
 
 from database.mongo import db
-from routes import admin_required
+from flask_app.routes import admin_required
 
 admin_users_bp = Blueprint("admin_users", __name__)
 

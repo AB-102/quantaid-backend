@@ -36,7 +36,7 @@ def validate_blocks(blocks: list) -> tuple[bool, str]:
 # --- Public GET endpoints ---
 
 
-@content_bp.route("/api/lessons", methods=["GET"])
+@content_bp.route("/lessons", methods=["GET"])
 @cross_origin(supports_credentials=True)
 def list_lessons():
     """List all lessons (id, courseId, title) ordered by courseId."""
@@ -46,7 +46,7 @@ def list_lessons():
     return jsonify(lessons), 200
 
 
-@content_bp.route("/api/lessons/<int:course_id>", methods=["GET"])
+@content_bp.route("/lessons/<int:course_id>", methods=["GET"])
 @cross_origin(supports_credentials=True)
 def get_lesson(course_id: int):
     """Get a single lesson by courseId, including blocks and quiz."""
@@ -236,7 +236,7 @@ def _get_dashboard_config() -> dict:
     return DEFAULT_DASHBOARD_CONFIG
 
 
-@content_bp.route("/api/dashboard-config", methods=["GET"])
+@content_bp.route("/dashboard-config", methods=["GET"])
 @cross_origin(supports_credentials=True)
 def get_dashboard_config():
     """Public endpoint: returns the dashboard structure for rendering."""

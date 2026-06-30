@@ -119,12 +119,12 @@ limiter = Limiter(
 )
 
 # --- Register Blueprints ---
-app.register_blueprint(content_bp)
-app.register_blueprint(ai_bp)
-app.register_blueprint(users_bp)
-app.register_blueprint(progress_bp)
-app.register_blueprint(feedback_bp)
-app.register_blueprint(admin_users_bp)
+app.register_blueprint(content_bp,     url_prefix="/api")
+app.register_blueprint(ai_bp,          url_prefix="/api")
+app.register_blueprint(users_bp,       url_prefix="/api")
+app.register_blueprint(progress_bp,    url_prefix="/api")
+app.register_blueprint(feedback_bp,    url_prefix="/api")
+app.register_blueprint(admin_users_bp, url_prefix="/api")
 
 # --- Auto-seed MongoDB on startup ---
 try:
@@ -170,12 +170,12 @@ def serve_file(file_id):
         return jsonify({"error": "File not found"}), 404
 
 
-@app.route("/ping", methods=["GET"])
-def ping():
+@app.route("/health", methods=["GET"])
+def health():
     try:
         mongo_client.admin.command("ping")
         db_status = "connected"
     except Exception:
-        logging.exception("MongoDB ping failed")
+        logging.exception("MongoDB health check failed")
         db_status = "error"
-    return jsonify({"status": "pong", "database": db_status}), 200
+    return jsonify({"status": "ok", "database": db_status}), 200

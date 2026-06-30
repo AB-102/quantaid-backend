@@ -15,7 +15,7 @@ from schemas.user import GoogleSSORequest, UserOut
 
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
-router = APIRouter(tags=["Auth"])
+router = APIRouter(prefix="/api", tags=["Auth"])
 
 _is_production = os.getenv("FLASK_ENV", "").lower() == "production"
 

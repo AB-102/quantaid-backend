@@ -3,7 +3,7 @@ services:
     name: quantumaied-backend
     runtime: docker
     plan: free
-    healthCheckPath: /ping
+    healthCheckPath: /health
     envVars:
       - key: FLASK_ENV
         value: production

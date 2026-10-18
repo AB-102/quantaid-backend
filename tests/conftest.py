@@ -1,77 +1,101 @@
 """
 Shared test fixtures.
 
-Uses a dedicated MongoDB test database via MONGODB_URI_TEST to isolate tests
-from dev/production data. A dedicated test prefix is used for user emails as
-an extra safeguard.
+Tests run the real app against a dedicated test database (MONGODB_URI_TEST). Everything a test
+creates uses the "_test_" prefix (or a courseId >= 9000 for lessons) and is removed after each test.
 """
 
 import os
-import sys
+import secrets
 
+import httpx
 import pytest
-
-# Ensure the project root is importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-# ---------------------------------------------------------------------------
-# Override database.mongo.db with a test-only connection BEFORE the Flask app
-# (and any route/service modules) are imported.  This ensures every module that
-# does ``from database.mongo import db`` gets the test database.
-# ---------------------------------------------------------------------------
 from dotenv import load_dotenv
+from gridfs import GridFS
+from pymongo import MongoClient
+from pymongo.errors import ConfigurationError
 
 load_dotenv()
 
 _test_uri = os.getenv("MONGODB_URI_TEST", "")
 if not _test_uri.strip():
-    raise RuntimeError(
-        "MONGODB_URI_TEST is not set. Tests require a dedicated test MongoDB URI. "
-        "Set MONGODB_URI_TEST in your .env file."
-    )
-
-from pymongo.errors import ConfigurationError  # noqa: E402
-from pymongo.mongo_client import MongoClient  # noqa: E402
-
-_test_client = MongoClient(_test_uri)
+    raise RuntimeError("MONGODB_URI_TEST is not set. Tests need a dedicated test database.")
+_sync_client = MongoClient(_test_uri, tz_aware=True)
 try:
-    _test_db = _test_client.get_default_database()
+    _sync_db = _sync_client.get_default_database()
 except ConfigurationError:
-    _test_db = _test_client.get_database("quantaied_test")
+    # Without a database name the app would fall back to the production database name
+    raise RuntimeError("MONGODB_URI_TEST must name a database, e.g. mongodb+srv://.../quantaid-test") from None
 
-# Importing database.mongo triggers the production client to be created,
-# but we immediately replace db with our test database.
-import database.mongo  # noqa: E402
+# Point the app at the test database before it is imported
+os.environ["MONGODB_URI"] = _test_uri
 
-database.mongo.db = _test_db
+from fastapi.testclient import TestClient  # noqa: E402
 
+from core.jwt import create_access_token  # noqa: E402
+from main import app  # noqa: E402
 
-TEST_USER_PREFIX = "_test_"
+TEST_PREFIX = "_test_"
+TEST_COURSE_ID_START = 9000
 
 
 @pytest.fixture(scope="session")
-def app():
-    """Create a Flask test app with all blueprints registered."""
-    from flask_app import app as flask_app
-    from flask_app import limiter
-
-    flask_app.config["TESTING"] = True
-    flask_app.config["SESSION_COOKIE_SECURE"] = False  # Allow non-HTTPS in tests
-    flask_app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    # Disable rate limiting in tests
-    limiter.enabled = False
-    yield flask_app
+def client():
+    # One TestClient for the whole run means one event loop. The app's async Mongo client
+    # binds to the first loop that uses it, so tests use the sync `test_db` for their own queries.
+    with TestClient(app) as test_client:
+        yield test_client
 
 
-@pytest.fixture()
-def client(app):
-    """Flask test client with session/cookie support."""
-    with app.test_client() as c:
-        yield c
+@pytest.fixture
+def test_db():
+    return _sync_db
 
 
 @pytest.fixture(autouse=True)
-def cleanup_test_users():
-    """Remove any test users created during the test."""
+def cleanup(client):
     yield
-    database.mongo.db.users.delete_many({"user_id": {"$regex": f"^{TEST_USER_PREFIX}"}})
+    client.cookies.clear()
+    _sync_db.users.delete_many({"user_id": {"$regex": f"^{TEST_PREFIX}"}})
+    _sync_db.feedback.delete_many({"category": {"$regex": f"^{TEST_PREFIX}"}})
+    _sync_db.lessons_v2.delete_many({"courseId": {"$gte": TEST_COURSE_ID_START}})
+    fs = GridFS(_sync_db)
+    for file_doc in _sync_db["fs.files"].find({"filename": {"$regex": f"^{TEST_PREFIX}"}}, {"_id": 1}):
+        fs.delete(file_doc["_id"])
+
+
+@pytest.fixture
+def login_as(client):
+    """Create a test user and sign the client in as them. Returns the user's email."""
+
+    def _login_as(local_part: str, is_admin: bool = False, **fields) -> str:
+        email = f"{TEST_PREFIX}{local_part}@test.com"
+        login_id = secrets.token_hex(32)
+        _sync_db.users.insert_one(
+            {
+                "user_id": email,
+                "login_id": login_id,
+                "is_admin": is_admin,
+                "unlockedLevels": [0],
+                "completedQuizzes": [],
+                **fields,
+            }
+        )
+        client.cookies.set("quantaid_token", create_access_token(email, login_id))
+        return email
+
+    return _login_as
+
+
+@pytest.fixture
+def google_userinfo(monkeypatch):
+    """Make Google's userinfo endpoint answer with the given identity (or status code)."""
+
+    def _set(email: str = "", sub: str = "", name: str = "Google User", picture: str = "", status_code: int = 200):
+        async def fake_get(_self, url, **_kwargs):
+            body = {"email": email, "sub": sub, "name": name, "picture": picture}
+            return httpx.Response(status_code, json=body, request=httpx.Request("GET", url))
+
+        monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
+
+    return _set

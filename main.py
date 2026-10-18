@@ -1,12 +1,33 @@
-from a2wsgi import WSGIMiddleware
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pymongo.errors import PyMongoError
 
-from config import CORS_ORIGINS
-from flask_app import app as flask_app
-from routers import auth
+from config import CORS_ORIGINS, LOG_LEVEL
+from database.db import client
+from database.seeding import seed_if_empty
+from routers import admin_users, ai, auth, content, feedback, files, progress, users
 
-app = FastAPI(title="Quantaid API", version="1.0.0")
+logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+# PyMongo logs every command at DEBUG level; keep it readable when ENVIRONMENT=development
+logging.getLogger("pymongo").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        await seed_if_empty()
+    except PyMongoError:
+        logger.exception("Auto-seed failed — database may be unavailable at startup")
+    yield
+    await client.close()
+
+
+app = FastAPI(title="Quantaid API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,11 +38,24 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(progress.router)
+app.include_router(files.router)
+app.include_router(content.router)
+app.include_router(content.admin_router)
+app.include_router(feedback.router)
+app.include_router(feedback.admin_router)
+app.include_router(admin_users.router)
+app.include_router(ai.router)
 
-# fallback: unmigrated routes handled by Flask until migration is complete
-app.mount("/", WSGIMiddleware(flask_app))  # ty: ignore[invalid-argument-type]
 
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+@app.get("/health")
+async def health():
+    """App + MongoDB check. Render and Prometheus probe it on the backend port, so it isn't under /api."""
+    try:
+        await client.admin.command("ping")
+        database = "connected"
+    except PyMongoError:
+        logger.exception("MongoDB health check failed")
+        database = "error"
+    return {"status": "ok", "database": database}

@@ -5,10 +5,8 @@ services:
     plan: free
     healthCheckPath: /health
     envVars:
-      - key: FLASK_ENV
+      - key: ENVIRONMENT
         value: production
-      - key: FLASK_SECRET_KEY
-        sync: false  # set manually in dashboard
       - key: JWT_SECRET_KEY
         sync: false  # set manually in dashboard
       - key: MONGODB_URI

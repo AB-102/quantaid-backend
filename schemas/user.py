@@ -7,4 +7,20 @@ class UserOut(BaseModel):
 
 
 class GoogleSSORequest(BaseModel):
-    access_token: str
+    accessToken: str
+
+
+class SaveProfileRequest(BaseModel):
+    """Onboarding / profile form. Field names match the frontend's JSON keys."""
+
+    whereHeard: list[str] = []
+    otherWhereHeard: str = ""
+    educationCategory: str = ""
+    educationLevel: str = ""
+    otherEducationLevel: str = ""
+    subjects: list[str] = []
+    otherSubject: str = ""
+    favoriteHobbies: list[str] = []
+    customHobbies: str = ""
+    codingExperience: str = ""
+    hobbyPersonalization: bool = True

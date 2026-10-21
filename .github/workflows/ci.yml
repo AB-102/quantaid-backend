@@ -44,10 +44,52 @@ jobs:
           ADMIN_EMAILS: testadmin@test.com
         run: uv run pytest tests/ -v
 
-  deploy:
+  # Each staging environment stores its own Render service's deploy hook as RENDER_DEPLOY_HOOK_URL.
+  # ref= makes Render deploy the exact commit that passed CI, not whatever is newest on main.
+  deploy-staging-public:
     needs: [lint, typecheck, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    environment: staging-public
     steps:
       - name: Trigger Render deploy
-        run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+        run: curl --fail -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}&ref=${{ github.sha }}"
+
+  deploy-staging-rice:
+    needs: [lint, typecheck, test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: staging-rice
+    steps:
+      - name: Trigger Render deploy
+        run: curl --fail -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}&ref=${{ github.sha }}"
+
+  # Pushes the image the Docker-route selfhost pulls (quantaid-infra/selfhost/docker).
+  # Needs the staging deploys, so production only gets what staging already got.
+  publish-image:
+    needs: [deploy-staging-public, deploy-staging-rice]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/ab-102/quantaid-backend
+          tags: |
+            type=raw,value=main
+            type=sha
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

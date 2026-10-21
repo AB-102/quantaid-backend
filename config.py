@@ -31,6 +31,18 @@ if not JWT_SECRET_KEY:
     raise RuntimeError("JWT_SECRET_KEY environment variable must be set")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "10080"))
 
+# IS_RICE_DEPLOYMENT: "true" for quantaid.rice.edu (Rice SSO only, Google sign-in turned off), "false" for
+# quantaid.org (Google sign-in). No default, so a Rice deployment can't end up accepting Google sign-in by omission.
+_is_rice_deployment = os.getenv("IS_RICE_DEPLOYMENT", "").lower()
+if _is_rice_deployment not in ("true", "false"):
+    raise RuntimeError('IS_RICE_DEPLOYMENT environment variable must be "true" or "false"')
+IS_RICE_DEPLOYMENT = _is_rice_deployment == "true"
+
+# Google sign-in only accepts access tokens issued to this OAuth client
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+if not IS_RICE_DEPLOYMENT and not GOOGLE_CLIENT_ID:
+    raise RuntimeError("GOOGLE_CLIENT_ID environment variable must be set when IS_RICE_DEPLOYMENT is false")
+
 # Rice University OIDC: set these to enable Rice SSO. Leave unset to disable.
 RICE_OIDC_CLIENT_ID = os.getenv("RICE_OIDC_CLIENT_ID", "")
 RICE_OIDC_CLIENT_SECRET = os.getenv("RICE_OIDC_CLIENT_SECRET", "")

@@ -27,13 +27,18 @@ except ConfigurationError:
     # Without a database name the app would fall back to the production database name
     raise RuntimeError("MONGODB_URI_TEST must name a database, e.g. mongodb+srv://.../quantaid-test") from None
 
-# Point the app at the test database before it is imported
+TEST_GOOGLE_CLIENT_ID = "test-google-client-id"
+
+# Point the app at the test database, and fix its sign-in settings, before it is imported
 os.environ["MONGODB_URI"] = _test_uri
+os.environ["IS_RICE_DEPLOYMENT"] = "false"
+os.environ["GOOGLE_CLIENT_ID"] = TEST_GOOGLE_CLIENT_ID
 
 from fastapi.testclient import TestClient  # noqa: E402
 
 from core.jwt import create_access_token  # noqa: E402
 from main import app  # noqa: E402
+from services.google_auth_service import GOOGLE_TOKENINFO_URL  # noqa: E402
 
 TEST_PREFIX = "_test_"
 TEST_COURSE_ID_START = 9000
@@ -89,11 +94,24 @@ def login_as(client):
 
 @pytest.fixture
 def google_userinfo(monkeypatch):
-    """Make Google's userinfo endpoint answer with the given identity (or status code)."""
+    """
+    Make Google answer for the access token with the given identity (or status code): tokeninfo says the token
+    was issued to `aud`, our client by default, and userinfo returns the identity.
+    """
 
-    def _set(email: str = "", sub: str = "", name: str = "Google User", picture: str = "", status_code: int = 200):
+    def _set(
+        email: str = "",
+        sub: str = "",
+        name: str = "Google User",
+        picture: str = "",
+        status_code: int = 200,
+        aud: str = TEST_GOOGLE_CLIENT_ID,
+    ):
         async def fake_get(_self, url, **_kwargs):
-            body = {"email": email, "sub": sub, "name": name, "picture": picture}
+            if url == GOOGLE_TOKENINFO_URL:
+                body = {"aud": aud, "sub": sub, "email": email}
+            else:
+                body = {"email": email, "sub": sub, "name": name, "picture": picture}
             return httpx.Response(status_code, json=body, request=httpx.Request("GET", url))
 
         monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)

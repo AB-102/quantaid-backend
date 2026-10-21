@@ -8,9 +8,10 @@ from fastapi import HTTPException, status
 from pydantic import BaseModel
 from pymongo.asynchronous.database import AsyncDatabase
 
-from config import ADMIN_EMAILS, FIRST_TIME_USER_EMAIL
+from config import ADMIN_EMAILS, FIRST_TIME_USER_EMAIL, GOOGLE_CLIENT_ID
 from core.file_urls import uploaded_file_id
 
+GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
 
@@ -31,8 +32,16 @@ class LoginResult(BaseModel):
 
 
 async def verify_google_token(access_token: str) -> GoogleIdentity | None:
-    """Ask Google who the access token belongs to. Returns None if Google rejects it or leaves out email/sub."""
+    """
+    Ask Google who the access token belongs to. Returns None if Google rejects it, the token was issued to
+    another app's OAuth client, or Google leaves out email/sub.
+    """
     async with httpx.AsyncClient(timeout=10) as client:
+        # Without this audience check, a token the user gave any other Google app would sign them in here
+        token_info = await client.get(GOOGLE_TOKENINFO_URL, params={"access_token": access_token})
+        if token_info.status_code != 200 or token_info.json().get("aud") != GOOGLE_CLIENT_ID:
+            return None
+        # tokeninfo has no name or picture, so the identity still comes from userinfo
         resp = await client.get(GOOGLE_USERINFO_URL, headers={"Authorization": f"Bearer {access_token}"})
     if resp.status_code != 200:
         return None

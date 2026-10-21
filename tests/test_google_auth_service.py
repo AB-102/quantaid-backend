@@ -13,6 +13,11 @@ def test_valid_token_returns_the_identity(google_userinfo):
     )
 
 
+def test_token_issued_to_another_app_returns_none(google_userinfo):
+    google_userinfo(email="someone@example.com", sub="sub-1", aud="another-apps-client-id")
+    assert asyncio.run(verify_google_token("token")) is None
+
+
 def test_token_google_rejects_returns_none(google_userinfo):
     google_userinfo(status_code=401)
     assert asyncio.run(verify_google_token("token")) is None

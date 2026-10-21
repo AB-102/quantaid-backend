@@ -22,4 +22,6 @@ COPY --chown=appuser:appuser . .
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# --no-sync: the image's environment is already built without dev dependencies; a sync at startup would try
+# to install them as appuser and fail
+CMD ["uv", "run", "--no-sync", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

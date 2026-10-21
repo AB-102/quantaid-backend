@@ -1,6 +1,6 @@
 """Google SSO login, the auth cookie, and the login_id check behind every authenticated request."""
 
-from tests.conftest import TEST_PREFIX
+from tests.conftest import TEST_GOOGLE_CLIENT_ID, TEST_PREFIX
 
 EMAIL = f"{TEST_PREFIX}google@test.com"
 SUB = "sub-google-1"
@@ -94,6 +94,33 @@ class TestGoogleLogin:
         res = _google_login(client, google_userinfo)
         assert res.status_code == 200
         assert res.json()["redirectTo"] == "profile-creation"
+
+    def test_token_issued_to_another_app_is_rejected(self, client, google_userinfo, test_db):
+        res = _google_login(client, google_userinfo, aud="another-apps-client-id")
+        assert res.status_code == 401
+        assert test_db.users.find_one({"user_id": EMAIL}) is None
+
+
+class TestDeploymentSignIn:
+    def test_config_on_a_google_deployment(self, client):
+        assert client.get("/api/auth/config").json() == {
+            "isRiceDeployment": False,
+            "googleClientId": TEST_GOOGLE_CLIENT_ID,
+        }
+
+    def test_rice_sign_in_is_off_on_a_google_deployment(self, client):
+        assert client.get("/api/auth/rice/login").status_code == 404
+        assert client.get("/api/auth/rice/callback").status_code == 404
+
+    def test_google_sign_in_is_off_on_a_rice_deployment(self, client, google_userinfo, test_db, monkeypatch):
+        monkeypatch.setattr("routers.auth.IS_RICE_DEPLOYMENT", True)
+        res = _google_login(client, google_userinfo)
+        assert res.status_code == 404
+        assert test_db.users.find_one({"user_id": EMAIL}) is None
+
+    def test_rice_login_waits_for_rice_oidc_credentials(self, client, monkeypatch):
+        monkeypatch.setattr("routers.auth.IS_RICE_DEPLOYMENT", True)
+        assert client.get("/api/auth/rice/login").status_code == 503
 
 
 class TestSession:

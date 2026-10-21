@@ -2,7 +2,11 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, StringConstraints
 
-NonEmptyText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+# Caps what one signed-in user can send to OpenAI per field (about 1,000 tokens); longer input gets a 422
+MAX_TEXT_LENGTH = 4000
+
+NonEmptyText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_TEXT_LENGTH)]
+LimitedText = Annotated[str, StringConstraints(max_length=MAX_TEXT_LENGTH)]
 
 
 class TextRequest(BaseModel):
@@ -16,9 +20,9 @@ class ChatMessage(BaseModel):
     """
 
     role: Literal["user", "assistant"]
-    content: str
+    content: LimitedText
 
 
 class ChatAboutTextRequest(BaseModel):
-    highlightedText: str = ""
+    highlightedText: LimitedText = ""
     messages: list[ChatMessage] = []

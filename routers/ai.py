@@ -17,6 +17,9 @@ router = APIRouter(prefix="/api/ai", tags=["AI"])
 openai_client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
 MODEL = "gpt-3.5-turbo"
 
+# The frontend sends the whole conversation; only the latest messages go to OpenAI, so each request's size stays bounded
+MAX_CHAT_HISTORY = 10
+
 
 async def _personalization_context(email: str) -> str:
     """
@@ -98,7 +101,7 @@ async def chat(body: ChatAboutTextRequest, user: CurrentUser):
         ),
     }
     user_msg = {"role": "user", "content": f"Discuss the highlighted text: '{highlighted_text}'."}
-    history = [message.model_dump() for message in body.messages]
+    history = [message.model_dump() for message in body.messages[-MAX_CHAT_HISTORY:]]
     reply = await _complete([system_prompt, user_msg, *history], max_tokens=300, temperature=0.6)
     return {"assistantReply": reply}
 

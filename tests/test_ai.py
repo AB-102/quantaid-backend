@@ -7,6 +7,7 @@ import openai
 import pytest
 
 from routers import ai
+from schemas.ai import MAX_TEXT_LENGTH
 
 
 @pytest.fixture
@@ -75,6 +76,23 @@ def test_blank_text_is_rejected(client, login_as, openai_calls):
     login_as("ai-blank")
     assert client.post("/api/ai/explanations", json={"text": "   "}).status_code == 422
     assert openai_calls == []
+
+
+def test_text_over_the_limit_is_rejected(client, login_as, openai_calls):
+    login_as("ai-too-long")
+    too_long = "q" * (MAX_TEXT_LENGTH + 1)
+    assert client.post("/api/ai/explanations", json={"text": too_long}).status_code == 422
+    assert client.post("/api/ai/chat", json={"highlightedText": too_long}).status_code == 422
+    assert client.post("/api/ai/chat", json={"messages": [{"role": "user", "content": too_long}]}).status_code == 422
+    assert openai_calls == []
+
+
+def test_chat_sends_only_the_latest_messages(client, login_as, openai_calls):
+    login_as("ai-long-chat")
+    messages = [{"role": "user", "content": f"Message {n}"} for n in range(15)]
+    assert client.post("/api/ai/chat", json={"messages": messages}).status_code == 200
+    history = openai_calls[0]["messages"][2:]  # after the system prompt and the highlighted-text message
+    assert history == messages[-ai.MAX_CHAT_HISTORY :]
 
 
 def test_openai_failure_is_a_502(client, login_as, monkeypatch):

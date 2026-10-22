@@ -2,6 +2,7 @@ from bson import ObjectId
 from fastapi import APIRouter, HTTPException, UploadFile, status
 
 from core.file_urls import file_url, uploaded_file_id
+from core.uploads import require_image
 from database.db import db, fs
 from dependencies.auth import CurrentUser
 from schemas.user import SaveProfileRequest
@@ -45,6 +46,7 @@ async def replace_profile_picture(picture: UploadFile, user: CurrentUser):
     """Replace the profile picture with an uploaded image."""
     if not picture.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty filename")
+    require_image(picture)
     # Delete the previous upload. Google picture URLs aren't ours to delete.
     user_doc = await db.users.find_one({"user_id": user.email}, {"picture": 1})
     old_file_id = uploaded_file_id((user_doc or {}).get("picture"))
@@ -53,7 +55,7 @@ async def replace_profile_picture(picture: UploadFile, user: CurrentUser):
     picture_id = await fs.put(
         await picture.read(),
         filename=picture.filename,
-        content_type=picture.content_type or "image/png",
+        content_type=picture.content_type,
         user_id=user.email,
         visibility="public",
     )

@@ -39,6 +39,15 @@ class TestSubmitFeedback:
         res = client.post("/api/feedback", data={"category": CATEGORY, "feedback": "   "})
         assert res.status_code == 400
 
+    def test_non_image_screenshot_is_rejected(self, client, test_db):
+        res = client.post(
+            "/api/feedback",
+            data={"category": CATEGORY, "feedback": "Look"},
+            files={"screenshot": ("_test_page.html", b"<script>alert(1)</script>", "text/html")},
+        )
+        assert res.status_code == 415
+        assert test_db.feedback.count_documents({"category": CATEGORY, "feedback": "Look"}) == 0
+
 
 class TestFeedbackAdmin:
     def test_review_flow(self, client, login_as):
@@ -73,6 +82,11 @@ class TestFeedbackAdmin:
         assert client.delete(f"/api/admin/feedback/{feedback_id}").status_code == 200
         assert client.get(screenshot_url).status_code == 404
         assert client.delete(f"/api/admin/feedback/{feedback_id}").status_code == 404
+
+    def test_export_escapes_formulas(self, client, login_as):
+        client.post("/api/feedback", data={"category": CATEGORY, "feedback": '=HYPERLINK("x")'})
+        login_as("feedback-csv-admin", is_admin=True)
+        assert "'=HYPERLINK" in client.get("/api/admin/feedback/export").text
 
     def test_feedback_without_a_screenshot_has_no_screenshot(self, client, login_as):
         res = client.post("/api/feedback", data={"category": CATEGORY, "feedback": "No picture"})

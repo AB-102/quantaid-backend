@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Read-only token by default; publish-image asks for packages: write itself
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest

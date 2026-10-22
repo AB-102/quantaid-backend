@@ -8,6 +8,7 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, UploadFile, status
 from gridfs import NoFile
 
+from core.uploads import require_image
 from database.db import db, fs
 from dependencies.auth import OptionalUser, require_admin
 from routers.files import gridfs_file_response
@@ -20,6 +21,11 @@ admin_router = APIRouter(prefix="/api/admin", tags=["Feedback admin"], dependenc
 
 # The admin dashboard can filter by ?status=, which would shadow fastapi's `status` module as a parameter name
 StatusFilter = Annotated[str | None, Query(alias="status")]
+
+
+def _csv_cell(value: str) -> str:
+    """Stop spreadsheet apps from running visitor-written text as a formula."""
+    return "'" + value if value.startswith(("=", "+", "-", "@", "\t", "\r")) else value
 
 
 def _object_id(value: str, label: str) -> ObjectId:
@@ -41,6 +47,7 @@ async def create_feedback(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Category and feedback text are required")
     screenshot_id = None
     if screenshot is not None and screenshot.filename:
+        require_image(screenshot)
         screenshot_id = await fs.put(
             await screenshot.read(),
             filename=screenshot.filename,
@@ -123,10 +130,10 @@ async def export_feedback_csv(request: Request, status_filter: StatusFilter = No
         writer.writerow(
             [
                 created,
-                item.get("user_id", "anonymous"),
-                item.get("category", ""),
+                _csv_cell(item.get("user_id", "anonymous")),
+                _csv_cell(item.get("category", "")),
                 item.get("status", "open"),
-                item.get("feedback", ""),
+                _csv_cell(item.get("feedback", "")),
                 screenshot_url,
             ]
         )

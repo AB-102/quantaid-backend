@@ -161,3 +161,14 @@ class TestSession:
         assert client.get("/api/admin/users").status_code == 200
         test_db.users.update_one({"user_id": email}, {"$set": {"is_admin": False}})
         assert client.get("/api/admin/users").status_code == 403
+
+
+class TestAuthCookie:
+    def test_cookie_is_samesite_lax_by_default(self, client, google_userinfo):
+        res = _google_login(client, google_userinfo)
+        assert "samesite=lax" in res.headers["set-cookie"].lower()
+
+    def test_cross_site_deployments_use_samesite_none(self, client, google_userinfo, monkeypatch):
+        monkeypatch.setattr("routers.auth.COOKIE_SAMESITE", "none")
+        res = _google_login(client, google_userinfo)
+        assert "samesite=none" in res.headers["set-cookie"].lower()

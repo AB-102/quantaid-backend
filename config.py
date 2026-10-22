@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Literal
 
 from dotenv import load_dotenv
 
@@ -10,11 +11,20 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 FIRST_TIME_USER_EMAIL = os.getenv("FIRST_TIME_USER_EMAIL")
 ADMIN_EMAILS = set(email.strip().lower() for email in os.getenv("ADMIN_EMAILS", "").split(",") if email.strip())
 
-# ENVIRONMENT: "production" makes the auth cookie Secure + SameSite=None (needed for cross-site
-# deployments like Vercel -> Render); "development" turns on DEBUG logging. Anything else is a plain local setup.
+# ENVIRONMENT: "production" makes the auth cookie Secure; "development" turns on DEBUG logging.
+# Anything else is a plain local setup.
 ENVIRONMENT = os.getenv("ENVIRONMENT", "")
 IS_PRODUCTION = ENVIRONMENT == "production"
 LOG_LEVEL = logging.DEBUG if ENVIRONMENT == "development" else logging.INFO
+
+# COOKIE_SAMESITE: "lax" (default) when the frontend and API share a site, like quantaid.org. "none" only for a
+# cross-site frontend, like Vercel -> Render staging; browsers then require the Secure flag, so it needs production.
+_cookie_samesite = os.getenv("COOKIE_SAMESITE", "lax").lower()
+if _cookie_samesite not in ("lax", "none"):
+    raise RuntimeError('COOKIE_SAMESITE environment variable must be "lax" or "none"')
+if _cookie_samesite == "none" and not IS_PRODUCTION:
+    raise RuntimeError("COOKIE_SAMESITE=none needs ENVIRONMENT=production, because browsers require Secure with it")
+COOKIE_SAMESITE: Literal["lax", "none"] = "none" if _cookie_samesite == "none" else "lax"
 
 # CORS: allowed origins for cross-origin requests
 # Can be overridden via CORS_ORIGINS env var (comma-separated)

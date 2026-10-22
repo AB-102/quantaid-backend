@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 
 from core.file_urls import file_url
+from core.uploads import require_image
 from data.default_dashboard_config import DEFAULT_DASHBOARD_CONFIG
 from database.db import db, fs
 from dependencies.auth import require_admin
@@ -77,10 +78,11 @@ async def upload_image(image: UploadFile):
     """Upload an image for a lesson image block. Returns the fileId the block stores."""
     if not image.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty filename")
+    require_image(image)
     file_id = await fs.put(
         await image.read(),
         filename=image.filename,
-        content_type=image.content_type or "image/png",
+        content_type=image.content_type,
         visibility="public",
     )
     return {"fileId": str(file_id), "url": file_url(file_id)}

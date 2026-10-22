@@ -4,7 +4,14 @@ import secrets
 from fastapi import APIRouter, HTTPException, Response, status
 from fastapi.responses import JSONResponse
 
-from config import GOOGLE_CLIENT_ID, IS_PRODUCTION, IS_RICE_DEPLOYMENT, JWT_EXPIRE_MINUTES, RICE_OIDC_CLIENT_ID
+from config import (
+    COOKIE_SAMESITE,
+    GOOGLE_CLIENT_ID,
+    IS_PRODUCTION,
+    IS_RICE_DEPLOYMENT,
+    JWT_EXPIRE_MINUTES,
+    RICE_OIDC_CLIENT_ID,
+)
 from core.jwt import create_access_token
 from database.db import db
 from dependencies.auth import OptionalUser
@@ -22,7 +29,7 @@ def _set_auth_cookie(response: Response, token: str) -> None:
         value=token,
         httponly=True,
         secure=IS_PRODUCTION,
-        samesite="none" if IS_PRODUCTION else "lax",
+        samesite=COOKIE_SAMESITE,
         max_age=JWT_EXPIRE_MINUTES * 60,
     )
 
@@ -32,7 +39,7 @@ def _clear_auth_cookie(response: Response) -> None:
         key="quantaid_token",
         httponly=True,
         secure=IS_PRODUCTION,
-        samesite="none" if IS_PRODUCTION else "lax",
+        samesite=COOKIE_SAMESITE,
     )
 
 

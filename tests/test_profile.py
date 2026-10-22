@@ -99,3 +99,12 @@ class TestProfileRoutes:
         second = client.put("/api/me/profile-picture", files={"picture": ("_test_two.png", b"two", "image/png")})
         assert client.get(first_url).status_code == 404  # the old upload is deleted
         assert test_db.users.find_one({"user_id": email})["picture"] == second.json()["url"]
+
+    def test_only_images_are_accepted(self, client, login_as, test_db):
+        login_as("picture-type")
+        for name, content_type in (("_test_evil.html", "text/html"), ("_test_evil.svg", "image/svg+xml")):
+            res = client.put(
+                "/api/me/profile-picture", files={"picture": (name, b"<script>alert(1)</script>", content_type)}
+            )
+            assert res.status_code == 415
+        assert test_db["fs.files"].count_documents({"filename": {"$in": ["_test_evil.html", "_test_evil.svg"]}}) == 0

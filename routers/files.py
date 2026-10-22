@@ -4,19 +4,30 @@ from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Response, status
 from gridfs import AsyncGridOut, NoFile
 
+from core.uploads import ALLOWED_IMAGE_TYPES
 from database.db import fs
 
 router = APIRouter(prefix="/api", tags=["Files"])
 
 
 async def gridfs_file_response(grid_out: AsyncGridOut) -> Response:
-    """Send a GridFS file inline with its stored content type."""
+    """
+    Send a GridFS file. Allowed image types are shown inline; anything else (only possible in files stored
+    before uploads were restricted) is a download, so a browser never runs it from our origin.
+    """
     # filename* with percent-encoding allows any filename (e.g. macOS screenshot names contain non-Latin-1 spaces)
     filename = quote(grid_out.filename or "file")
+    if grid_out.content_type in ALLOWED_IMAGE_TYPES:
+        media_type, disposition = grid_out.content_type, "inline"
+    else:
+        media_type, disposition = "application/octet-stream", "attachment"
     return Response(
         content=await grid_out.read(),
-        media_type=grid_out.content_type or "application/octet-stream",
-        headers={"Content-Disposition": f"inline; filename*=utf-8''{filename}"},
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f"{disposition}; filename*=utf-8''{filename}",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 

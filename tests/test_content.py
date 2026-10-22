@@ -108,6 +108,11 @@ class TestLessonAdmin:
         assert served.status_code == 200
         assert served.content == b"png-bytes"
 
+    def test_uploaded_image_must_be_an_image(self, client, login_as):
+        login_as("image-type-admin", is_admin=True)
+        res = client.post("/api/admin/images", files={"image": ("_test_page.html", b"<script>", "text/html")})
+        assert res.status_code == 415
+
     def test_students_cannot_edit_content(self, client, login_as):
         login_as("content-student")
         assert client.post("/api/admin/lessons", json={"courseId": COURSE_ID, "title": "No"}).status_code == 403

@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo.errors import PyMongoError
 
-from config import CORS_ORIGINS, LOG_LEVEL
+from config import CORS_ORIGINS, LOG_LEVEL, RENDER_GIT_COMMIT
 from database.db import client
 from database.seeding import seed_if_empty
 from routers import admin_users, ai, auth, content, feedback, files, progress, users
@@ -51,11 +51,12 @@ app.include_router(ai.router)
 
 @app.get("/health")
 async def health():
-    """App + MongoDB check. Render and Prometheus probe it on the backend port, so it isn't under /api."""
+    """App + MongoDB check. Render and Prometheus probe it on the backend port, so it isn't under /api.
+    CI's staging deploy jobs poll it until it reports their commit."""
     try:
         await client.admin.command("ping")
         database = "connected"
     except PyMongoError:
         logger.exception("MongoDB health check failed")
         database = "error"
-    return {"status": "ok", "database": database}
+    return {"status": "ok", "database": database, "commit": RENDER_GIT_COMMIT}

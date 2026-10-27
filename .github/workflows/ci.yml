@@ -50,23 +50,44 @@ jobs:
 
   # Each staging environment stores its own Render service's deploy hook as RENDER_DEPLOY_HOOK_URL.
   # ref= makes Render deploy the exact commit that passed CI, not whatever is newest on main.
+  # Render only routes traffic to a deploy once its /health check passes, so the job then waits until /health
+  # reports this commit with the database connected. A failed deploy never does, and the job times out.
+  # The timeout covers Render's build plus its own 15-minute health-check window.
+  # concurrency runs one deploy at a time, so Render never skips this commit for a newer queued one.
+  # --max-time 90 covers a sleeping free-tier service waking up; until then, jq fails on the error page and the loop retries.
   deploy-staging-public:
     needs: [lint, typecheck, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: staging-public
+    concurrency: staging-public
+    timeout-minutes: 25
     steps:
       - name: Trigger Render deploy
         run: curl --fail -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}&ref=${{ github.sha }}"
+      - name: Wait for the deploy to go live
+        run: |
+          until curl -sS --max-time 90 https://quantaid-api-staging-public.onrender.com/health \
+              | jq -e '.commit == "${{ github.sha }}" and .database == "connected"'; do
+            sleep 15
+          done
 
   deploy-staging-rice:
     needs: [lint, typecheck, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: staging-rice
+    concurrency: staging-rice
+    timeout-minutes: 25
     steps:
       - name: Trigger Render deploy
         run: curl --fail -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}&ref=${{ github.sha }}"
+      - name: Wait for the deploy to go live
+        run: |
+          until curl -sS --max-time 90 https://quantaid-api-staging-rice.onrender.com/health \
+              | jq -e '.commit == "${{ github.sha }}" and .database == "connected"'; do
+            sleep 15
+          done
 
   # Pushes the image the Docker-route selfhost pulls (quantaid-infra/selfhost/docker).
   # Needs the staging deploys, so production only gets what staging already got.

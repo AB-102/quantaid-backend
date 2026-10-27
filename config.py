@@ -17,6 +17,10 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "")
 IS_PRODUCTION = ENVIRONMENT == "production"
 LOG_LEVEL = logging.DEBUG if ENVIRONMENT == "development" else logging.INFO
 
+# Render sets this to the deployed commit; CI's staging deploy jobs wait until /health reports it.
+# Unset outside Render (local, self-host), so /health reports null there.
+RENDER_GIT_COMMIT = os.getenv("RENDER_GIT_COMMIT")
+
 # COOKIE_SAMESITE: "lax" (default) when the frontend and API share a site, like quantaid.org. "none" only for a
 # cross-site frontend, like Vercel -> Render staging; browsers then require the Secure flag, so it needs production.
 _cookie_samesite = os.getenv("COOKIE_SAMESITE", "lax").lower()

@@ -30,4 +30,4 @@ def test_missing_file(client):
 
 
 def test_health(client):
-    assert client.get("/health").json() == {"status": "ok", "database": "connected"}
+    assert client.get("/health").json() == {"status": "ok", "database": "connected", "commit": None}

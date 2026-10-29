@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/me", tags=["Me"])
 async def get_progress(user: CurrentUser):
     user_doc = await db.users.find_one(
         {"user_id": user.email},
-        {"_id": 0, "unlockedLevels": 1, "completedQuizzes": 1, "hasViewedFirstLesson": 1, "name": 1, "picture": 1},
+        {"_id": 0, "completedQuizzes": 1, "hasViewedFirstLesson": 1, "name": 1, "picture": 1},
     )
     if user_doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -26,7 +26,6 @@ async def get_progress(user: CurrentUser):
     if user.email == FIRST_TIME_USER_EMAIL:
         has_viewed_first_lesson = False  # the test user always sees onboarding
     return {
-        "unlockedLevels": user_doc.get("unlockedLevels", [0]),
         "completedQuizzes": user_doc.get("completedQuizzes", []),
         "hasViewedFirstLesson": has_viewed_first_lesson,
         "email": user.email,
@@ -37,12 +36,11 @@ async def get_progress(user: CurrentUser):
 
 @router.post("/quiz-results", status_code=status.HTTP_201_CREATED)
 async def create_quiz_result(body: SaveQuizResultRequest, user: CurrentUser):
-    """Record a quiz attempt. Passing unlocks the next course."""
-    unlocked_levels = await record_quiz_result(db, user.email, body.courseId, body.score, body.passed)
-    if unlocked_levels is None:
+    """Record a quiz attempt."""
+    if not await record_quiz_result(db, user.email, body.courseId, body.score, body.passed):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     logger.debug("Quiz result saved for %s, course %s, passed=%s", user.email, body.courseId, body.passed)
-    return {"message": "Quiz result saved successfully", "unlockedLevels": unlocked_levels}
+    return {"message": "Quiz result saved successfully"}
 
 
 @router.put("/onboarding")

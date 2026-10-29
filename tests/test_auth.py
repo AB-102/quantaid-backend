@@ -23,7 +23,6 @@ class TestGoogleLogin:
         }
         user = test_db.users.find_one({"user_id": EMAIL})
         assert user["google_sub"] == SUB
-        assert user["unlockedLevels"] == [0]
         assert client.get("/api/auth/session").json() == {"authenticated": True, "email": EMAIL, "isAdmin": False}
 
     def test_returning_user_with_a_profile_goes_to_the_map(self, client, google_userinfo, test_db):

@@ -64,6 +64,7 @@ def cleanup(client):
     _sync_db.users.delete_many({"user_id": {"$regex": f"^{TEST_PREFIX}"}})
     _sync_db.feedback.delete_many({"category": {"$regex": f"^{TEST_PREFIX}"}})
     _sync_db.lessons_v2.delete_many({"courseId": {"$gte": TEST_COURSE_ID_START}})
+    _sync_db.lesson_revisions.delete_many({"courseId": {"$gte": TEST_COURSE_ID_START}})
     fs = GridFS(_sync_db)
     for file_doc in _sync_db["fs.files"].find({"filename": {"$regex": f"^{TEST_PREFIX}"}}, {"_id": 1}):
         fs.delete(file_doc["_id"])
@@ -81,7 +82,6 @@ def login_as(client):
                 "user_id": email,
                 "login_id": login_id,
                 "is_admin": is_admin,
-                "unlockedLevels": [0],
                 "completedQuizzes": [],
                 **fields,
             }

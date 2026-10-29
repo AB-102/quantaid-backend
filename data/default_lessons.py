@@ -1,6 +1,9 @@
 """Default lesson content (converted from the original LessonContents.ts and QuizQuestion.ts) used to seed lessons_v2."""
 
+import copy
 from datetime import UTC, datetime
+
+from core.quiz_links import link_questions_by_block_id
 
 # --- Hardcoded lesson data (mirrored from LessonContents.ts) ---
 
@@ -591,8 +594,9 @@ def get_lesson_documents() -> list:
     docs = []
     for course_id in sorted(LESSONS.keys()):
         lesson_data = LESSONS[course_id]
-        quiz_data = QUIZZES.get(course_id, [])
+        quiz_data = copy.deepcopy(QUIZZES.get(course_id, []))  # linking changes the questions in place
         blocks = paragraphs_to_blocks(lesson_data["paragraphs"])  # ty: ignore[invalid-argument-type]
+        link_questions_by_block_id(blocks, quiz_data)
         docs.append(
             {
                 "courseId": course_id,

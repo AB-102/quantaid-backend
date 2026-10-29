@@ -21,12 +21,6 @@ class LessonUpdate(BaseModel):
     interactiveTerms: dict | None = None
 
 
-class ReorderRequest(BaseModel):
-    """The position of each old courseId in `order` becomes that lesson's new courseId."""
-
-    order: list[int] = Field(min_length=1)
-
-
 class DashboardConfigUpdate(BaseModel):
     sections: list[dict]
     courses: list[dict]

@@ -62,7 +62,6 @@ def _new_user_doc(identity: GoogleIdentity, login_id: str, is_admin: bool) -> di
         "login_id": login_id,
         "is_admin": is_admin,
         "profile_complete": False,
-        "unlockedLevels": [0],
         "completedQuizzes": [],
         "hasViewedFirstLesson": False,
         "createdAt": datetime.now(UTC),

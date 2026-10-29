@@ -10,6 +10,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from config import ADMIN_EMAILS, FIRST_TIME_USER_EMAIL, GOOGLE_CLIENT_ID
 from core.file_urls import uploaded_file_id
+from services.login_service import LoginResult, is_disabled, new_user_doc
 
 GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
@@ -20,15 +21,6 @@ class GoogleIdentity(BaseModel):
     email: str
     name: str | None = None
     picture: str | None = None
-
-
-class LoginResult(BaseModel):
-    email: str
-    login_id: str
-    is_admin: bool
-    redirect_to: str
-    message: str
-    created: bool = False
 
 
 async def verify_google_token(access_token: str) -> GoogleIdentity | None:
@@ -55,21 +47,14 @@ async def verify_google_token(access_token: str) -> GoogleIdentity | None:
 
 def _new_user_doc(identity: GoogleIdentity, login_id: str, is_admin: bool) -> dict:
     return {
-        "user_id": identity.email,
-        "name": identity.name,
+        **new_user_doc(identity.email, identity.name, login_id, is_admin),
         "picture": identity.picture,
         "google_sub": identity.sub,
-        "login_id": login_id,
-        "is_admin": is_admin,
-        "profile_complete": False,
-        "completedQuizzes": [],
-        "hasViewedFirstLesson": False,
-        "createdAt": datetime.now(UTC),
     }
 
 
 def _raise_if_disabled(user_doc: dict | None) -> None:
-    if user_doc and user_doc.get("disabled", False):
+    if is_disabled(user_doc):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account has been disabled.")
 
 

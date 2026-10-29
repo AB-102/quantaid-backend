@@ -11,6 +11,16 @@ from schemas.admin_users import UserUpdate
 router = APIRouter(prefix="/api/admin", tags=["Admin users"], dependencies=[Depends(require_admin)])
 
 
+def _auth_methods(user: dict) -> list[str]:
+    """The sign-in methods an account is linked to. The subject IDs themselves stay private."""
+    methods = []
+    if user.get("google_sub"):
+        methods.append("google")
+    if user.get("rice_sub"):
+        methods.append("rice")
+    return methods
+
+
 @router.get("/users")
 async def list_users(
     search: str = "",
@@ -32,6 +42,7 @@ async def list_users(
                 "user_id": 1,
                 "name": 1,
                 "google_sub": 1,
+                "rice_sub": 1,
                 "is_admin": 1,
                 "profile_complete": 1,
                 "disabled": 1,
@@ -54,8 +65,7 @@ async def list_users(
                 "isAdmin": user.get("is_admin", False),
                 "profileComplete": user.get("profile_complete", False),
                 "disabled": user.get("disabled", False),
-                # Derived sign-in methods; google_sub itself stays private
-                "authMethods": ["google"] if user.get("google_sub") else [],
+                "authMethods": _auth_methods(user),
                 "createdAt": user.get("createdAt"),
                 "lastLoginAt": user.get("lastLoginAt"),
             }

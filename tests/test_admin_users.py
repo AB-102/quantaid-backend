@@ -31,6 +31,23 @@ class TestAdminUsers:
         # Regex syntax is searched for literally instead of breaking the query
         assert client.get("/api/admin/users", params={"search": "(("}).status_code == 200
 
+    def test_auth_methods_list_each_linked_sign_in(self, client, login_as, test_db):
+        rice_only = f"{TEST_PREFIX}rice-only@rice.edu"
+        both = f"{TEST_PREFIX}rice-and-google@rice.edu"
+        test_db.users.insert_many(
+            [
+                {"user_id": rice_only, "rice_sub": "rice-sub-x"},
+                {"user_id": both, "rice_sub": "rice-sub-y", "google_sub": "google-sub-y"},
+            ]
+        )
+        login_as("auth-methods-admin", is_admin=True)
+
+        users = client.get("/api/admin/users", params={"search": "rice-"}).json()["users"]
+        assert {user["userId"]: user["authMethods"] for user in users} == {
+            rice_only: ["rice"],
+            both: ["google", "rice"],
+        }
+
     def test_paging_limits(self, client, login_as):
         login_as("paging-admin", is_admin=True)
         assert client.get("/api/admin/users", params={"limit": 0}).status_code == 422

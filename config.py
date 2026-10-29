@@ -57,10 +57,27 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 if not IS_RICE_DEPLOYMENT and not GOOGLE_CLIENT_ID:
     raise RuntimeError("GOOGLE_CLIENT_ID environment variable must be set when IS_RICE_DEPLOYMENT is false")
 
-# Rice University OIDC: set these to enable Rice SSO. Leave unset to disable.
+# Rice SSO (OIDC), the only sign-in on a Rice deployment. Rice OIT issues the client ID and secret per environment.
+# RICE_OIDC_REDIRECT_URI must exactly match the registered one; it isn't derived from the request, which arrives
+# through proxies. FRONTEND_URL is where the callback sends the browser afterwards; it's fixed here, never taken from
+# the request, so the callback can't be made to redirect anywhere else.
 RICE_OIDC_CLIENT_ID = os.getenv("RICE_OIDC_CLIENT_ID", "")
 RICE_OIDC_CLIENT_SECRET = os.getenv("RICE_OIDC_CLIENT_SECRET", "")
 RICE_OIDC_REDIRECT_URI = os.getenv("RICE_OIDC_REDIRECT_URI", "")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "").rstrip("/")
+if IS_RICE_DEPLOYMENT:
+    _missing = [
+        name
+        for name, value in [
+            ("RICE_OIDC_CLIENT_ID", RICE_OIDC_CLIENT_ID),
+            ("RICE_OIDC_CLIENT_SECRET", RICE_OIDC_CLIENT_SECRET),
+            ("RICE_OIDC_REDIRECT_URI", RICE_OIDC_REDIRECT_URI),
+            ("FRONTEND_URL", FRONTEND_URL),
+        ]
+        if not value
+    ]
+    if _missing:
+        raise RuntimeError(f"{', '.join(_missing)} must be set when IS_RICE_DEPLOYMENT is true")
 
 # Email (Resend): set RESEND_API_KEY to send email. Leave unset to turn email off (local dev, CI).
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")

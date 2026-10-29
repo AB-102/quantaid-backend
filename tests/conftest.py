@@ -5,13 +5,18 @@ Tests run the real app against a dedicated test database (MONGODB_URI_TEST). Eve
 creates uses the "_test_" prefix (or a courseId >= 9000 for lessons) and is removed after each test.
 """
 
+import json
 import os
 import secrets
+import time
 
 import httpx
+import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
 from dotenv import load_dotenv
 from gridfs import GridFS
+from jwt.algorithms import RSAAlgorithm
 from pymongo import MongoClient
 from pymongo.errors import ConfigurationError
 
@@ -28,11 +33,21 @@ except ConfigurationError:
     raise RuntimeError("MONGODB_URI_TEST must name a database, e.g. mongodb+srv://.../quantaid-test") from None
 
 TEST_GOOGLE_CLIENT_ID = "test-google-client-id"
+TEST_RICE_CLIENT_ID = "test-rice-client-id"
+# Has characters that client_secret_basic must form-encode
+TEST_RICE_CLIENT_SECRET = "test rice:secret/+"
+TEST_RICE_REDIRECT_URI = "http://testserver/api/auth/rice/callback"
+TEST_FRONTEND_URL = "http://frontend.test"
 
 # Point the app at the test database, and fix its sign-in settings, before it is imported
 os.environ["MONGODB_URI"] = _test_uri
 os.environ["IS_RICE_DEPLOYMENT"] = "false"
 os.environ["GOOGLE_CLIENT_ID"] = TEST_GOOGLE_CLIENT_ID
+# The Rice settings too, so tests can switch on Rice sign-in with monkeypatch.setattr("routers.auth.IS_RICE_DEPLOYMENT")
+os.environ["RICE_OIDC_CLIENT_ID"] = TEST_RICE_CLIENT_ID
+os.environ["RICE_OIDC_CLIENT_SECRET"] = TEST_RICE_CLIENT_SECRET
+os.environ["RICE_OIDC_REDIRECT_URI"] = TEST_RICE_REDIRECT_URI
+os.environ["FRONTEND_URL"] = TEST_FRONTEND_URL
 # Turn email off, so a Resend key in a local .env never sends real mail from tests
 os.environ["RESEND_API_KEY"] = ""
 
@@ -41,6 +56,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from core.jwt import create_access_token  # noqa: E402
 from main import app  # noqa: E402
 from services.google_auth_service import GOOGLE_TOKENINFO_URL  # noqa: E402
+from services.rice_auth_service import RICE_ISSUER, RICE_JWKS_URL, RICE_TOKEN_URL, RICE_USERINFO_URL  # noqa: E402
 
 TEST_PREFIX = "_test_"
 TEST_COURSE_ID_START = 9000
@@ -117,5 +133,79 @@ def google_userinfo(monkeypatch):
             return httpx.Response(status_code, json=body, request=httpx.Request("GET", url))
 
         monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
+
+    return _set
+
+
+# The fake Rice IdP's signing key, published under the key ID Rice uses, and a key Rice never published
+RICE_SIGNING_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+UNPUBLISHED_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+_RICE_KID = "defaultRSASign"
+
+
+def _rice_jwks() -> dict:
+    public_jwk = json.loads(RSAAlgorithm.to_jwk(RICE_SIGNING_KEY.public_key()))
+    return {"keys": [{**public_jwk, "kid": _RICE_KID, "use": "sig", "alg": "RS256"}]}
+
+
+@pytest.fixture
+def rice_idp(monkeypatch):
+    """
+    Make Rice's IdP answer the callback's token, key set and userinfo requests for the given user. The ID token
+    is signed with RICE_SIGNING_KEY under Rice's key ID. A test can break one step:
+    - `claims`: merged into the ID token's claims; a value of None leaves that claim out
+    - `signing_key` / `algorithm`: sign the ID token differently
+    - `token_status`: the token endpoint's status code
+    - `userinfo`: merged into the userinfo response
+    Returns a dict that records the token and userinfo requests.
+    """
+
+    def _set(
+        *,
+        email: str,
+        sub: str,
+        nonce: str,
+        name: str | None = "Rice User",
+        claims: dict | None = None,
+        signing_key: rsa.RSAPrivateKey | str = RICE_SIGNING_KEY,
+        algorithm: str = "RS256",
+        token_status: int = 200,
+        userinfo: dict | None = None,
+    ) -> dict:
+        now = int(time.time())
+        id_claims = {
+            "iss": RICE_ISSUER,
+            "aud": TEST_RICE_CLIENT_ID,
+            "sub": sub,
+            "nonce": nonce,
+            "iat": now,
+            "exp": now + 300,
+        }
+        id_claims = {key: value for key, value in {**id_claims, **(claims or {})}.items() if value is not None}
+        id_token = jwt.encode(id_claims, signing_key, algorithm=algorithm, headers={"kid": _RICE_KID})
+        userinfo_body = {"sub": sub, "email": email, "name": name, **(userinfo or {})}
+        requests: dict = {}
+
+        async def fake_post(_self, url, **kwargs):
+            assert url == RICE_TOKEN_URL
+            requests["token"] = kwargs
+            body = {"access_token": "rice-access-token", "token_type": "Bearer", "id_token": id_token}
+            if token_status != 200:
+                body = {"error": "invalid_grant", "error_description": "<script>alert(1)</script>"}
+            return httpx.Response(token_status, json=body, request=httpx.Request("POST", url))
+
+        async def fake_get(_self, url, **kwargs):
+            if url == RICE_JWKS_URL:
+                body = _rice_jwks()
+            elif url == RICE_USERINFO_URL:
+                requests["userinfo"] = kwargs
+                body = userinfo_body
+            else:
+                raise AssertionError(f"unexpected GET {url}")
+            return httpx.Response(200, json=body, request=httpx.Request("GET", url))
+
+        monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+        monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
+        return requests
 
     return _set

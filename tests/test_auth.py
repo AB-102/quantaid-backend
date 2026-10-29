@@ -130,10 +130,6 @@ class TestDeploymentSignIn:
         assert res.status_code == 404
         assert test_db.users.find_one({"user_id": EMAIL}) is None
 
-    def test_rice_login_waits_for_rice_oidc_credentials(self, client, monkeypatch):
-        monkeypatch.setattr("routers.auth.IS_RICE_DEPLOYMENT", True)
-        assert client.get("/api/auth/rice/login").status_code == 503
-
 
 class TestSession:
     def test_logout_invalidates_the_old_cookie(self, client, login_as):

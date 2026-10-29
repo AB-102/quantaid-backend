@@ -80,6 +80,7 @@ def cleanup(client):
     yield
     client.cookies.clear()
     _sync_db.users.delete_many({"user_id": {"$regex": f"^{TEST_PREFIX}"}})
+    _sync_db.ai_usage.delete_many({"user_id": {"$regex": f"^{TEST_PREFIX}"}})
     _sync_db.feedback.delete_many({"category": {"$regex": f"^{TEST_PREFIX}"}})
     _sync_db.lessons_v2.delete_many({"courseId": {"$gte": TEST_COURSE_ID_START}})
     _sync_db.lesson_revisions.delete_many({"courseId": {"$gte": TEST_COURSE_ID_START}})

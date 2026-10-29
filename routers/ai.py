@@ -1,21 +1,13 @@
-import logging
-from typing import cast
-
-import openai
 from fastapi import APIRouter, HTTPException, status
-from openai.types.chat import ChatCompletionMessageParam
 
-from config import OPENAI_API_KEY
 from database.db import db
 from dependencies.auth import CurrentUser
 from schemas.ai import ChatAboutTextRequest, TextRequest
-
-logger = logging.getLogger(__name__)
+from schemas.user import UserOut
+from services.ai_usage_service import release_request, reserve_request
+from services.llm_service import AIProviderError, complete, default_llm
 
 router = APIRouter(prefix="/api/ai", tags=["AI"])
-
-openai_client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
-MODEL = "gpt-3.5-turbo"
 
 # The frontend sends the whole conversation; only the latest messages go to OpenAI, so each request's size stays bounded
 MAX_CHAT_HISTORY = 10
@@ -41,19 +33,21 @@ async def _personalization_context(email: str) -> str:
     )
 
 
-async def _complete(messages: list[dict], max_tokens: int, temperature: float) -> str:
-    """Run a chat completion. If OpenAI fails, log why and return a 502 without exposing the cause."""
+async def _complete(user: UserOut, messages: list[dict], max_tokens: int, temperature: float) -> str:
+    """
+    Run a chat completion for the user. Requests on Quantaid's key count against the user's daily limit (a 429
+    once it's used up); admins have no limit. A provider failure is a 502 and doesn't use up a request.
+    """
+    llm = default_llm()
+    counted = llm.uses_quantaid_key and not user.is_admin
+    if counted and not await reserve_request(db, user.email):
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Daily AI limit reached")
     try:
-        response = await openai_client.chat.completions.create(
-            model=MODEL,
-            messages=cast(list[ChatCompletionMessageParam], messages),
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-    except openai.APIError:
-        logger.exception("OpenAI request failed")
+        return await complete(llm, messages, max_tokens, temperature)
+    except AIProviderError:
+        if counted:
+            await release_request(db, user.email)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="AI service unavailable") from None
-    return (response.choices[0].message.content or "").strip()
 
 
 @router.post("/explanations")
@@ -85,7 +79,7 @@ async def create_explanation(body: TextRequest, user: CurrentUser):
             f"5. Ask if anything needs clarification"
         ),
     }
-    explanation = await _complete([system_prompt, user_msg], max_tokens=250, temperature=0.6)
+    explanation = await _complete(user, [system_prompt, user_msg], max_tokens=250, temperature=0.6)
     return {"explanation": explanation}
 
 
@@ -102,7 +96,7 @@ async def chat(body: ChatAboutTextRequest, user: CurrentUser):
     }
     user_msg = {"role": "user", "content": f"Discuss the highlighted text: '{highlighted_text}'."}
     history = [message.model_dump() for message in body.messages[-MAX_CHAT_HISTORY:]]
-    reply = await _complete([system_prompt, user_msg, *history], max_tokens=300, temperature=0.6)
+    reply = await _complete(user, [system_prompt, user_msg, *history], max_tokens=300, temperature=0.6)
     return {"assistantReply": reply}
 
 
@@ -126,5 +120,5 @@ async def create_analogy(body: TextRequest, user: CurrentUser):
             f"Keep it engaging but concise."
         ),
     }
-    analogy = await _complete([system_prompt, user_prompt], max_tokens=250, temperature=0.7)
+    analogy = await _complete(user, [system_prompt, user_prompt], max_tokens=250, temperature=0.7)
     return {"analogy": analogy}

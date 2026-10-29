@@ -6,6 +6,7 @@ from core.uploads import require_image
 from database.db import db, fs
 from dependencies.auth import CurrentUser
 from schemas.user import SaveProfileRequest
+from services.ai_usage_service import get_usage
 from services.profile_service import build_profile_update
 
 router = APIRouter(prefix="/api/me", tags=["Me"])
@@ -32,6 +33,14 @@ async def get_profile(user: CurrentUser):
         "hobbyPersonalization": user_doc.get("hobby_personalization", True),
         "hasGoogle": bool(user_doc.get("google_sub")),
     }
+
+
+@router.get("/ai-usage")
+async def get_ai_usage(user: CurrentUser):
+    """Today's AI requests on Quantaid's key and when the count resets. Admins have no limit (`limit` is null)."""
+    if user.is_admin:
+        return {"used": 0, "limit": None, "resetsAt": None}
+    return await get_usage(db, user.email)
 
 
 @router.put("/profile")

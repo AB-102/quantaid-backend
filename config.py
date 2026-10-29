@@ -8,6 +8,8 @@ load_dotenv()
 
 MONGODB_URI = os.getenv("MONGODB_URI")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# AI requests each user can make per day (UTC) on Quantaid's own OpenAI key. Admins have no limit.
+AI_DAILY_LIMIT = int(os.getenv("AI_DAILY_LIMIT", "50"))
 FIRST_TIME_USER_EMAIL = os.getenv("FIRST_TIME_USER_EMAIL")
 ADMIN_EMAILS = set(email.strip().lower() for email in os.getenv("ADMIN_EMAILS", "").split(",") if email.strip())
 

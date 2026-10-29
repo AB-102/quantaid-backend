@@ -6,9 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pymongo.errors import PyMongoError
 
 from config import CORS_ORIGINS, LOG_LEVEL, RENDER_GIT_COMMIT
-from database.db import client
+from database.db import client, db
 from database.seeding import seed_if_empty
 from routers import admin_users, ai, auth, content, feedback, files, progress, users
+from services import ai_usage_service
 
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 # PyMongo logs every command at DEBUG level; keep it readable when ENVIRONMENT=development
@@ -21,8 +22,9 @@ logger = logging.getLogger(__name__)
 async def lifespan(_app: FastAPI):
     try:
         await seed_if_empty()
+        await ai_usage_service.create_indexes(db)
     except PyMongoError:
-        logger.exception("Auto-seed failed — database may be unavailable at startup")
+        logger.exception("Startup database setup failed — database may be unavailable at startup")
     yield
     await client.close()
 

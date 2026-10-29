@@ -61,3 +61,8 @@ if not IS_RICE_DEPLOYMENT and not GOOGLE_CLIENT_ID:
 RICE_OIDC_CLIENT_ID = os.getenv("RICE_OIDC_CLIENT_ID", "")
 RICE_OIDC_CLIENT_SECRET = os.getenv("RICE_OIDC_CLIENT_SECRET", "")
 RICE_OIDC_REDIRECT_URI = os.getenv("RICE_OIDC_REDIRECT_URI", "")
+
+# Email (Resend): set RESEND_API_KEY to send email. Leave unset to turn email off (local dev, CI).
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+# Must be on a domain the key's Resend account has verified
+FROM_EMAIL = os.getenv("FROM_EMAIL", "hello@mail.quantaid.org")

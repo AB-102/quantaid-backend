@@ -25,6 +25,19 @@ class TestGoogleLogin:
         assert user["google_sub"] == SUB
         assert client.get("/api/auth/session").json() == {"authenticated": True, "email": EMAIL, "isAdmin": False}
 
+    def test_new_user_gets_a_welcome_email(self, client, google_userinfo, monkeypatch):
+        sent = []
+        monkeypatch.setattr("routers.auth.send_welcome_email", lambda to, name: sent.append((to, name)))
+        _google_login(client, google_userinfo, name="Ada Lovelace")
+        assert sent == [(EMAIL, "Ada Lovelace")]
+
+    def test_returning_user_gets_no_welcome_email(self, client, google_userinfo, test_db, monkeypatch):
+        sent = []
+        monkeypatch.setattr("routers.auth.send_welcome_email", lambda to, name: sent.append((to, name)))
+        test_db.users.insert_one({"user_id": EMAIL, "google_sub": SUB})
+        _google_login(client, google_userinfo)
+        assert sent == []
+
     def test_returning_user_with_a_profile_goes_to_the_map(self, client, google_userinfo, test_db):
         test_db.users.insert_one(
             {"user_id": EMAIL, "google_sub": SUB, "login_id": "old", "profile_complete": True, "name": "Kept Name"}

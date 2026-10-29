@@ -43,7 +43,8 @@ main.py          App setup: logging, CORS, startup seeding, routers, /health
 config.py        Settings read from .env
 routers/         Route handlers: auth, users and progress (/api/me), ai, content, feedback, admin_users, files
 schemas/         Pydantic request models, one module per router
-services/        Business logic as plain functions (Google sign-in, progress, profile)
+services/        Business logic as plain functions (Google sign-in, progress, profile, email)
+emails/          Email templates (HTML exported from quantaid-frontend/transactional/)
 dependencies/    Auth dependencies: CurrentUser, OptionalUser, AdminUser
 core/            JWT and file-URL helpers
 database/        Async MongoDB client and startup seeding

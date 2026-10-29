@@ -33,6 +33,8 @@ TEST_GOOGLE_CLIENT_ID = "test-google-client-id"
 os.environ["MONGODB_URI"] = _test_uri
 os.environ["IS_RICE_DEPLOYMENT"] = "false"
 os.environ["GOOGLE_CLIENT_ID"] = TEST_GOOGLE_CLIENT_ID
+# Turn email off, so a Resend key in a local .env never sends real mail from tests
+os.environ["RESEND_API_KEY"] = ""
 
 from fastapi.testclient import TestClient  # noqa: E402
 

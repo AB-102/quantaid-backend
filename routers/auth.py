@@ -1,7 +1,7 @@
 import logging
 import secrets
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
 from fastapi.responses import JSONResponse
 
 from config import (
@@ -16,6 +16,7 @@ from core.jwt import create_access_token
 from database.db import db
 from dependencies.auth import OptionalUser
 from schemas.user import GoogleSSORequest
+from services.email_service import send_welcome_email
 from services.google_auth_service import resolve_or_create_user, verify_google_token
 
 logger = logging.getLogger(__name__)
@@ -57,8 +58,11 @@ async def get_auth_config():
 
 
 @router.post("/auth/google")
-async def google_login(body: GoogleSSORequest):
-    """Google SSO login/signup. Verifies the Google access token and sets the quantaid_token cookie."""
+async def google_login(body: GoogleSSORequest, background_tasks: BackgroundTasks):
+    """
+    Google SSO login/signup. Verifies the Google access token and sets the quantaid_token cookie.
+    A new account also gets a welcome email, sent after the response.
+    """
     if IS_RICE_DEPLOYMENT:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Google sign-in is not available on this deployment"
@@ -68,6 +72,8 @@ async def google_login(body: GoogleSSORequest):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired Google token")
     result = await resolve_or_create_user(identity, db)
     logger.debug("Google login for %s (%s)", result.email, result.message)
+    if result.created:
+        background_tasks.add_task(send_welcome_email, result.email, identity.name)
     resp = JSONResponse(
         {
             "message": result.message,

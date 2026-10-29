@@ -23,6 +23,5 @@ package-lock.json
 # Docs
 README.md
 
-# Tests and scripts (not needed in prod)
+# Tests (not needed in prod)
 tests/
-scripts/

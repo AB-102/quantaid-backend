@@ -2,8 +2,8 @@
 
 import re
 
-# Uploads made before the FastAPI migration were stored as /file/<id>; scripts/rewrite_picture_urls.py
-# rewrites them, but until it has run on a database both forms can appear.
+# Uploads made before the FastAPI migration were stored as /file/<id>, so a database that still holds those URLs
+# is read the same way.
 _UPLOADED_FILE_URL = re.compile(r"^(?:/api/files|/api/file|/file)/([0-9a-f]{24})$")
 
 

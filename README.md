@@ -48,7 +48,6 @@ dependencies/    Auth dependencies: CurrentUser, OptionalUser, AdminUser
 core/            JWT and file-URL helpers
 database/        Async MongoDB client and startup seeding
 data/            Default lessons and dashboard config
-scripts/         One-off maintenance scripts
 tests/           pytest suite
 ```
 

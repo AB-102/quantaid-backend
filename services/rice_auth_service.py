@@ -1,8 +1,7 @@
 """
 Rice SSO: the OIDC authorization code flow against Rice's Shibboleth IdP, and resolving its result to a Quantaid user.
 
-The endpoints come from https://idp.rice.edu/.well-known/openid-configuration. OIDC_REFERENCE.md has the details,
-and RICE_OIDC_PLAN.md the reasons behind each check.
+The endpoints come from https://idp.rice.edu/.well-known/openid-configuration.
 """
 
 import base64

@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from pymongo.errors import DuplicateKeyError
 
 from core.file_urls import file_url
 from core.quiz_links import BLOCK_ID_PATTERN
@@ -145,17 +146,19 @@ async def upload_image(image: UploadFile):
 
 @admin_router.post("/lessons", status_code=status.HTTP_201_CREATED)
 async def create_lesson(body: LessonCreate, admin: AdminUser):
-    if await db.lessons_v2.find_one({"courseId": body.courseId}):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=f"Lesson with courseId {body.courseId} already exists"
-        )
     error = validate_blocks(body.blocks) or validate_quiz(body.quiz, body.blocks)
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
     now = datetime.now(UTC)
-    result = await db.lessons_v2.insert_one(
-        {**body.model_dump(), "created_at": now, "updated_at": now, "updated_by": admin.email}
-    )
+    try:
+        # courseId has a unique index (database/seeding.py), so two creates at once can't both succeed
+        result = await db.lessons_v2.insert_one(
+            {**body.model_dump(), "created_at": now, "updated_at": now, "updated_by": admin.email}
+        )
+    except DuplicateKeyError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=f"Lesson with courseId {body.courseId} already exists"
+        ) from None
     return {"message": "Lesson created", "id": str(result.inserted_id)}
 
 

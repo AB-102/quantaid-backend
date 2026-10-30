@@ -23,6 +23,11 @@ LOG_LEVEL = logging.DEBUG if ENVIRONMENT == "development" else logging.INFO
 # Unset outside Render (local, self-host), so /health reports null there.
 RENDER_GIT_COMMIT = os.getenv("RENDER_GIT_COMMIT")
 
+# The release a self-hosted host runs (e.g. 2026.11.0), set by its deploy from quantaid-infra's release.env.
+# A release reuses an image built earlier, so the version can't be baked in.
+# Unset on Render, where staging is unversioned.
+APP_VERSION = os.getenv("APP_VERSION")
+
 # COOKIE_SAMESITE: "lax" (default) when the frontend and API share a site, like quantaid.org. "none" only for a
 # cross-site frontend, like Vercel -> Render staging; browsers then require the Secure flag, so it needs production.
 _cookie_samesite = os.getenv("COOKIE_SAMESITE", "lax").lower()

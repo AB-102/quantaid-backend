@@ -2,7 +2,7 @@
 The AI provider layer: which provider, model and key a request uses, and the call to it.
 
 Routes build the prompts and call `complete()`; only this module talks to a provider. For now every request uses
-Quantaid's own OpenAI key. User-supplied keys and other providers plug in here (see AI_PROVIDERS_PLAN.md).
+Quantaid's own OpenAI key. User-supplied keys and other providers plug in here.
 """
 
 import logging

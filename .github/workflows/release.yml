@@ -1,0 +1,35 @@
+name: Release
+
+# Pushing a vYYYY.M.N tag publishes that commit as a release.
+# Nothing is rebuilt: the image CI already built and staging already ran is retagged with the version.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Check the tag is vYYYY.M.N
+        run: echo "$GITHUB_REF_NAME" | grep -Eq '^v[0-9]{4}\.[1-9][0-9]?\.[0-9]+$'
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # The sha- image only exists for a main commit whose CI run and staging deploys passed,
+      # so tagging any other commit fails here
+      - name: Promote the image that passed CI
+        run: |
+          image=ghcr.io/ab-102/quantaid-backend
+          docker buildx imagetools create -t "$image:${GITHUB_REF_NAME#v}" "$image:sha-${GITHUB_SHA::7}"
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes

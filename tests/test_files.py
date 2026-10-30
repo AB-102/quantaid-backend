@@ -30,4 +30,7 @@ def test_missing_file(client):
 
 
 def test_health(client):
-    assert client.get("/health").json() == {"status": "ok", "database": "connected", "commit": None}
+    # /api/health is the same check, reachable through the site's proxy
+    expected = {"status": "ok", "database": "connected", "commit": None, "version": None}
+    assert client.get("/health").json() == expected
+    assert client.get("/api/health").json() == expected

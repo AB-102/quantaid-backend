@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo.errors import PyMongoError
 
-from config import CORS_ORIGINS, LOG_LEVEL, RENDER_GIT_COMMIT
+from config import APP_VERSION, CORS_ORIGINS, LOG_LEVEL, RENDER_GIT_COMMIT
 from database.db import client, db
 from database.seeding import seed_if_empty
 from routers import admin_users, ai, auth, content, feedback, files, progress, users
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     try:
-        await seed_if_empty()
+        await seed_if_empty(db)
         await ai_usage_service.create_indexes(db)
     except PyMongoError:
         logger.exception("Startup database setup failed — database may be unavailable at startup")
@@ -52,13 +52,15 @@ app.include_router(ai.router)
 
 
 @app.get("/health")
+@app.get("/api/health")
 async def health():
-    """App + MongoDB check. Render and Prometheus probe it on the backend port, so it isn't under /api.
-    CI's staging deploy jobs poll it until it reports their commit."""
+    """App + MongoDB check. Render, CI and Prometheus probe /health on the backend port. /api/health is the same
+    check through the site's proxy: self-host health gates and outside-in probes use it.
+    CI's staging deploy jobs poll it until it reports their commit; self-hosted hosts report their release."""
     try:
         await client.admin.command("ping")
         database = "connected"
     except PyMongoError:
         logger.exception("MongoDB health check failed")
         database = "error"
-    return {"status": "ok", "database": database, "commit": RENDER_GIT_COMMIT}
+    return {"status": "ok", "database": database, "commit": RENDER_GIT_COMMIT, "version": APP_VERSION}
